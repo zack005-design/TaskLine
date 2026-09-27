@@ -1,6 +1,7 @@
 package com.example.taskfoundation.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -22,6 +23,7 @@ import androidx.room.PrimaryKey
         Index("status"),
         Index("isCompleted"),
         Index("updatedAt"),
+        Index(value = ["importKey"], unique = true),
     ],
 )
 data class TaskEntity(
@@ -37,4 +39,12 @@ data class TaskEntity(
     val isCompleted: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val dueTimeMinutes: Int? = null,
+    val reminderMinutes: Int? = null,
+    @ColumnInfo(defaultValue = "'NONE'") val repeatRule: String = "NONE",
+    @ColumnInfo(defaultValue = "1") val repeatInterval: Int = 1,
+    val repeatAnchor: Long? = null,
+    val snoozedUntil: Long? = null,
+    val lastNotifiedAt: Long? = null,
+    val importKey: String? = null,
 )

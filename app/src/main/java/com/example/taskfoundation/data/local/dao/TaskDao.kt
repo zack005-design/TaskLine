@@ -11,9 +11,83 @@ import com.example.taskfoundation.data.local.entity.TagEntity
 import com.example.taskfoundation.data.local.entity.TaskEntity
 import com.example.taskfoundation.data.local.entity.TaskTagCrossRef
 import kotlinx.coroutines.flow.Flow
+import com.example.taskfoundation.data.mapper.toDomain
+import com.example.taskfoundation.data.mapper.toEntity
+import com.example.taskfoundation.domain.time.TaskSchedule
 
 @Dao
 interface TaskDao {
+    @Query("SELECT * FROM tasks WHERE id = :id")
+    suspend fun get(id: Long): TaskEntity?
+
+    @Query("SELECT * FROM tasks")
+    suspend fun all(): List<TaskEntity>
+
+    @Query("SELECT * FROM subtasks")
+    suspend fun allSubtasks(): List<SubtaskEntity>
+
+    @Query("SELECT * FROM tags")
+    suspend fun allTags(): List<TagEntity>
+
+    @Query("SELECT * FROM task_tags")
+    suspend fun allLinks(): List<TaskTagCrossRef>
+
+    @Query("SELECT id FROM tasks WHERE importKey = :key LIMIT 1")
+    suspend fun importedId(key: String): Long?
+
+    @Query("UPDATE subtasks SET isCompleted = 0, updatedAt = :now WHERE taskId = :id")
+    suspend fun resetSubtasks(id: Long, now: Long)
+
+    @Query("UPDATE tasks SET lastNotifiedAt = :at WHERE id = :id")
+    suspend fun markNotified(id: Long, at: Long)
+
+    @Query("UPDATE tasks SET snoozedUntil = :until, updatedAt = :now WHERE id = :id AND isCompleted = 0")
+    suspend fun snooze(id: Long, until: Long, now: Long)
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM subtasks WHERE taskId = :id")
+    suspend fun lastSubtaskOrder(id: Long): Int
+
+    @Transaction
+    suspend fun saveWithSubtasks(task: TaskEntity, titles: List<String>, now: Long): Long {
+        val id = saveScheduled(task, now)
+        val firstOrder = lastSubtaskOrder(id) + 1
+        titles.forEachIndexed { index, title ->
+            require(title.isNotBlank())
+            upsertSubtask(SubtaskEntity(taskId = id, title = title, isCompleted = false, sortOrder = firstOrder + index,
+                createdAt = now, updatedAt = now))
+        }
+        return id
+    }
+
+    @Transaction
+    suspend fun saveScheduled(task: TaskEntity, now: Long): Long {
+        val old = if (task.id == 0L) null else checkNotNull(get(task.id)) { "Task no longer exists" }
+        val scheduleChanged = old == null || old.dueDateTime != task.dueDateTime ||
+            old.dueTimeMinutes != task.dueTimeMinutes || old.reminderMinutes != task.reminderMinutes ||
+            old.isCompleted != task.isCompleted
+        var current = task.copy(
+            repeatAnchor = if (old?.repeatRule != task.repeatRule || old.repeatInterval != task.repeatInterval || old.dueDateTime != task.dueDateTime)
+                task.dueDateTime else old.repeatAnchor,
+            snoozedUntil = if (scheduleChanged) null else old.snoozedUntil,
+            lastNotifiedAt = if (scheduleChanged) null else old.lastNotifiedAt,
+        )
+        if (current.isCompleted && old?.isCompleted != true && current.repeatRule != "NONE") {
+            current = TaskSchedule.next(current.toDomain(), now).toEntity()
+            if (old != null) resetSubtasks(old.id, now)
+        }
+        val id = upsert(current)
+        return if (task.id == 0L) id else task.id
+    }
+
+    @Transaction
+    suspend fun completeScheduled(id: Long, completed: Boolean, now: Long): Boolean {
+        val task = get(id) ?: return false
+        if (completed && !task.isCompleted && task.repeatRule != "NONE") {
+            upsert(TaskSchedule.next(task.toDomain(), now).toEntity())
+            resetSubtasks(id, now)
+        } else setCompleted(id, completed, now)
+        return true
+    }
     @Query(
         """
         SELECT * FROM tasks
@@ -43,7 +117,9 @@ interface TaskDao {
         SET isCompleted = :isCompleted,
             status = CASE WHEN :isCompleted THEN 'DONE' WHEN status = 'DONE' THEN 'TODO' ELSE status END,
             progress = CASE WHEN :isCompleted THEN 100 WHEN progress = 100 THEN 0 ELSE progress END,
-            updatedAt = :updatedAt
+            updatedAt = :updatedAt,
+            snoozedUntil = NULL,
+            lastNotifiedAt = CASE WHEN isCompleted != :isCompleted THEN NULL ELSE lastNotifiedAt END
         WHERE id = :taskId
         """,
     )
@@ -54,6 +130,9 @@ interface TaskDao {
 
     @Upsert
     suspend fun upsertSubtask(subtask: SubtaskEntity): Long
+
+    @Query("UPDATE subtasks SET title = :title, isCompleted = :completed, sortOrder = :sortOrder, updatedAt = :updatedAt WHERE id = :id AND taskId = :taskId")
+    suspend fun updateSubtask(id: Long, taskId: Long, title: String, completed: Boolean, sortOrder: Int, updatedAt: Long): Int
 
     @Query("DELETE FROM subtasks WHERE id = :subtaskId")
     suspend fun deleteSubtask(subtaskId: Long): Int
@@ -82,6 +161,10 @@ interface TaskDao {
 
     @Transaction
     suspend fun createOrAttachTag(taskId: Long, tag: TagEntity): Long {
+        findTagByName(tag.name)?.let { existing ->
+            insertTaskTag(TaskTagCrossRef(taskId = taskId, tagId = existing.id))
+            return existing.id
+        }
         val insertedId = insertTag(tag)
         val tagId = if (insertedId == -1L) {
             checkNotNull(findTagByName(tag.name)) { "Tag conflict without an existing row" }.id

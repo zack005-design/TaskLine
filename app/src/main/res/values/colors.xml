@@ -1,0 +1,8 @@
+<resources>
+    <color name="launcher_background">#0062D6</color>
+    <color name="widget_glass_top">#EEFFFFFF</color>
+    <color name="widget_glass_bottom">#DDE3EAFF</color>
+    <color name="widget_glass_edge">#F2FFFFFF</color>
+    <color name="widget_text">#1B2030</color>
+    <color name="widget_secondary">#49546C</color>
+</resources>

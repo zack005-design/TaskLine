@@ -1,0 +1,1 @@
+TaskLine empty-state animations are original vector illustrations authored for this project. No external assets, fonts, or network requests are needed. LottieFiles download returned HTTP 403, so these replace the proposed downloaded illustrations. Each file is a 200 x 200, 3-second floating loop.

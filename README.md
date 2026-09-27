@@ -1,93 +1,79 @@
 # TaskLine
 
-A native Android task and project app built with Kotlin, Jetpack Compose, Material 3, and Room. TaskLine stores its data locally and uses Flow and StateFlow to connect persistence to screen state.
+An offline Android task and project planner built with Kotlin, Jetpack Compose, and Room. Requires Android 8.0 / API 26 or newer.
 
-> **Status: Phase 2 — Task Foundation.** This is an early development build, not a finished task manager. The current screen displays task and project counts and load errors. Creating, editing, and organizing items through the UI is not implemented yet.
+## Features
 
-## Download the Android test build
+- Apple-inspired translucent cards, rounded controls and home-screen widget, floating navigation, light/dark themes, and large-text layouts. This is an Android interpretation, not Apple's native Liquid Glass renderer.
+- Tasks, projects, subtasks, tags, priorities, status, progress, search, and All / Today / Upcoming / Unscheduled / Overdue / Active / Completed filters. Upcoming shows tasks due in the next seven days; Unscheduled shows incomplete tasks with no date.
+- A **Calendar** tab with two modes: **Agenda** (month picker + ordered daily task list) and **Timeline** (bounded 14-day Gantt chart with Previous, Today, and Next navigation showing progress and project).
+- A **Stats** tab with active / overdue / done counts, a completion-streak banner, an animated 7-day bar chart, and per-project progress bars. Activity is estimated from completed tasks' last-update timestamp; reopened and repeating tasks are excluded.
+- A **Focus timer** that starts a 25-minute countdown from a task's detail sheet. The session state is persisted and restored across process death. A notification fires on completion when Android allows background work. The live countdown is visible in the top bar while a session runs.
+- A confetti burst animation when a task is marked complete.
+- Calendar dates that stay on the same day when time zones change, plus optional local due times.
+- Optional notifications at the due time or before it, with Complete and Snooze 10 min actions. Tapping a notification opens the relevant task.
+- Daily, weekly, monthly, and yearly recurring tasks with custom intervals. Completion advances to the next scheduled date, skips missed dates, and resets progress and subtasks. Month-end/leap-day anchors are retained. No occurrence history is recorded.
+- One-time import of calendars synced to Android (including Google Calendar), or an `.ics` file. Preview events, choose a project, select events, and confirm import. Re-importing the same source skips existing event keys.
+- Validated JSON backup/restore with record-count preview, explicit replacement confirmation, and transactional rollback on failure.
+- Retryable database loading errors and saved editor fields across activity recreation.
+- A rounded **TaskLine · Up next** home-screen widget showing up to three incomplete tasks from the same database.
 
-[Download TaskLine v0.2.0-alpha APK](https://github.com/zack005-design/TaskLine/releases/download/v0.2.0-alpha/TaskLine-v0.2.0-alpha-debug.apk) · [Release notes](https://github.com/zack005-design/TaskLine/releases/tag/v0.2.0-alpha)
+## Try it
 
-Requires **Android 8.0 (API 26) or newer**. Download the APK on your Android device, open it, and allow installation from your browser or file manager if prompted. The installed app currently appears as **Task Foundation**.
+1. Create a project in **Projects**, then use **View tasks** to add tasks to it.
+2. In **New task** or **Edit**, set a due date to reveal due time, reminder, and repeat controls. Enable notifications when prompted if you want reminders.
+3. Open **Tools → Calendar import** to select a synced phone calendar or an `.ics` file. Google Calendar ZIP exports must be extracted first. Review the preview before importing.
+4. Open **Tools → Backup & restore** to export a file or inspect a backup. **Replace and restore** replaces current data; **Cancel** preserves it.
+5. Add **TaskLine · Up next** through your Android launcher's widget picker. Tap the widget to open TaskLine.
 
-This APK is debug-signed for early testing, not a Play Store release. It opens a minimal foundation screen; task creation and editing cannot yet be tested through the app. APKs are attached to GitHub Releases rather than committed into the source repository. The release also includes a SHA-256 checksum.
+## Scheduling and calendar limits
 
-## Implemented
+Reminders use Android inexact alarms and can be delayed by battery management. They follow the device's local time zone and require notifications to be enabled. Pending reminders are reconciled after data changes, app resume, reboot, clock/time-zone changes, and app updates. Force-stopping the app prevents Android from running its receivers until it is opened again. Physical-device/OEM background-delivery behavior is not yet verified.
 
-- Room entities for tasks, subtasks, projects, tags, and task-tag associations.
-- Task and project DAOs with observable queries and database writes.
-- Concrete offline repositories, entity-to-domain mapping, validation, and an injectable clock.
-- Task and project ViewModels exposing StateFlow, with separate UI models.
-- Foreign keys and indexes for relationships and common queries.
-- Exported version 1 database schema and an instrumented project-deletion regression test.
-- A minimal Compose screen wired to the repositories through ViewModels.
+Calendar import copies events into tasks; it is not ongoing synchronization and does not upload data. Imported tasks are due at the event start, with reminders initially off. Device calendar import relies on accounts/calendars already synced to the phone; TaskLine does not implement Google sign-in.
 
-Task records include `id`, `title`, `description`, `projectId`, `startDateTime`, `dueDateTime`, `priority`, `status`, `progress`, `isCompleted`, `createdAt`, and `updatedAt`. Date/time values are nullable Unix epoch milliseconds; creation and update timestamps are epoch milliseconds. Progress ranges from 0 to 100.
+The bounded `.ics` reader supports all-day events, UTC/IANA time zones, basic daily/weekly/monthly/yearly recurrence, counts/end dates, and exclusions. Unsupported recurrence rules, custom time zones, durations, and edited recurrence sets are reported as skipped. Use the synced phone-calendar route for provider-expanded complex recurrence. File import is limited to 10 MB, up to 5,000 events, and a preview window of at most one year.
 
-## Data behavior
+The widget requests periodic updates every 30 minutes; Android controls the actual update time. It also refreshes when tasks change while the process runs. Its three entries are ordered by due date, priority, and ID. It opens the app; inline widget task completion is not implemented.
 
-Room is the persistent source of truth. No cloud service, synchronization, account, or demo-data seeding is implemented. The application manifest does not request Internet permission.
+## Data and backup
 
-Deleting a project sets its tasks' `projectId` to null; it does not delete those tasks or tasks in other projects. Deleting a task cascades to its subtasks and tag associations. Deleting a tag removes its associations, not the tasks themselves.
+Room is the persistent source of truth. No Internet permission, cloud account, demo-data seeding, or synchronization service is included. Calendar access is read-only and requested when the user chooses phone-calendar import.
 
-New databases are created at version 1. Destructive migration fallback is not enabled; future schema changes need explicit migrations.
+Deleting a project detaches its tasks. Deleting a task cascades to its subtasks and tag links. Tag removal leaves tasks intact.
 
-## Architecture
+Database version 3 has explicit migrations: 1→2 converts legacy local-midnight values to UTC-midnight calendar-date encoding; 2→3 adds scheduling and import fields. UTC-midnight date values must be decoded with `CalendarDates`, not converted as instants to the device's zone. Legacy records did not store their original time zone, so migration preserves the date visible in the device's zone at upgrade time. Destructive migration fallback is disabled.
 
-```text
-Compose UI → ViewModels → repository interfaces → Room repositories → DAOs → SQLite
-                       ← StateFlow / domain models ← Flow / entity mapping ←
-```
+Backups include projects, tasks, subtasks, tags, relationships, reminder/repeat state, and import keys. Current exports use format version 2; canonical version 1 backups remain readable with default scheduling values. The app validates types, IDs, references, dates, completion state, and schedules before showing restore confirmation. A failed replacement transaction leaves existing data unchanged. Exports/imports are limited to 20 MB. Backups are readable JSON and are not encrypted by TaskLine.
 
-The `data` package owns Room entities, DAOs, mappers, and repository implementations. The `domain` package contains models, repository contracts, and the clock abstraction. The `ui` package owns screen models and ViewModels. `AppContainer` wires the concrete implementations. Room entities are not exposed to the UI.
+File operations run off the main thread. If Android kills the process before restore confirmation, choose the file again. An interrupted export may be incomplete; wait for **Backup saved** before relying on the file.
 
-## Build from source
+## Build and verify
 
-Requirements: Android Studio with support for the configured Android Gradle plugin, JDK 17 or newer compatible with Gradle, Android SDK Platform 36, and SDK build tools. Gradle dependencies require an Internet connection on the first build.
-
-```sh
-git clone https://github.com/zack005-design/TaskLine.git
-cd TaskLine
-```
-
-Open the folder in Android Studio and let it configure your SDK path. Alternatively, create an untracked `local.properties` containing `sdk.dir` for your Android SDK. Set `JAVA_HOME` to a compatible JDK; Android Studio's bundled JBR can be used.
-
-Windows PowerShell:
+Use Android Studio's bundled JBR (or a compatible JDK), SDK Platform 36, and the included Gradle wrapper. Configure the local SDK path in untracked `local.properties`.
 
 ```powershell
-.\gradlew.bat :app:assembleDebug :app:compileDebugAndroidTestKotlin
+$env:JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr'
+./gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --max-workers=2
+# With an emulator or device connected:
+./gradlew.bat :app:connectedDebugAndroidTest --max-workers=2
 ```
 
-macOS / Linux:
+The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. It is a development build, not a signed store release. Application ID is `com.example.taskfoundation`, version name `1.0`, version code `1`.
 
-```sh
-sh gradlew :app:assembleDebug :app:compileDebugAndroidTestKotlin
-```
+The app explicitly aligns the serialization runtime with Room's migration-test dependency so the app and test APKs use a compatible ABI. See `VERIFICATION.md` for the final observed results and remaining verification limits.
 
-APK output: `app/build/outputs/apk/debug/app-debug.apk`.
+## Source organization
 
-The Gradle wrapper is included; a separate Gradle installation is unnecessary. The app currently uses application ID `com.example.taskfoundation`, version name `1.0`, and version code `1`. The `v0.2.0-alpha` GitHub label identifies the foundation milestone, not the Android package version.
+- `domain`: task models, calendar-date encoding, recurrence/reminder calculations, and repository contracts.
+- `data`: Room schema/DAOs/migrations, repositories, validated portable backup format.
+- `calendar`: synced-calendar reader, bounded offline `.ics` reader, transactional duplicate-safe import.
+- `reminders`: Room-derived Android alarm/notification scheduling and recovery receivers.
+- `ui`: screen state, editors, calendar import, backup confirmation, reusable glass components.
+- `widget`: native RemoteViews provider using the same task repository.
 
-## Verification
+`DESIGN.md` documents the visual system and references. Android Studio component previews include light, dark, and 150% text. Generated builds, local paths, signing material, and APKs are excluded from Git.
 
-The debug APK build and instrumented-test compilation have passed. `ProjectDeletionTest` covers detaching the deleted project's tasks while preserving a second project's task relationship.
+## Remaining product work
 
-To execute the instrumented test, connect an Android device or start an emulator, then run:
-
-```powershell
-.\gradlew.bat :app:connectedDebugAndroidTest
-```
-
-Instrumented tests and interactive device testing have not yet been verified. Compilation does not establish on-device behavior.
-
-## Planned work
-
-- Task and project creation, editing, deletion, and navigation in the UI.
-- Task assignment, subtasks, and tag management screens.
-- Interaction, persistence, and accessibility testing on devices.
-- Calendar, Gantt, widgets, and reminders in later phases.
-- Production branding, signing, and release preparation.
-
-## Repository contents
-
-Only source, resources, Gradle configuration and wrapper files, tests, the exported Room schema, and documentation belong in Git. Generated builds, caches, machine-specific SDK paths, signing keys, and APKs are excluded. Test APKs are distributed through Releases.
+Production signing/branding and store preparation; physical-device and TalkBack audits; full calendar synchronization; inline widget completion; task dependencies, templates, and completion history.

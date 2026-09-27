@@ -16,6 +16,11 @@ interface TaskRepository {
 
     suspend fun saveTask(task: Task): Long
 
+    suspend fun saveTaskWithSubtasks(task: Task, titles: List<String>): Long {
+        check(titles.none { it.isNotBlank() }) { "This repository does not support bundled saves" }
+        return saveTask(task)
+    }
+
     suspend fun deleteTask(taskId: Long): Boolean
 
     suspend fun setTaskCompleted(taskId: Long, isCompleted: Boolean): Boolean

@@ -9,6 +9,8 @@ import com.example.taskfoundation.domain.model.Task
 import com.example.taskfoundation.domain.model.TaskStatus
 import com.example.taskfoundation.domain.repository.TaskRepository
 import com.example.taskfoundation.domain.time.Clock
+import com.example.taskfoundation.domain.time.CalendarDates
+import com.example.taskfoundation.domain.time.TaskSchedule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -29,9 +31,15 @@ class OfflineTaskRepository(
     override fun observeTags(taskId: Long): Flow<List<Tag>> =
         taskDao.observeTags(taskId).map { entities -> entities.map { it.toDomain() } }
 
-    override suspend fun saveTask(task: Task): Long {
+    override suspend fun saveTask(task: Task): Long = saveTaskWithSubtasks(task, emptyList())
+
+    override suspend fun saveTaskWithSubtasks(task: Task, titles: List<String>): Long {
+        TaskSchedule.validate(task)
         require(task.title.isNotBlank()) { "Task title cannot be blank" }
         require(task.progress in 0..100) { "Task progress must be between 0 and 100" }
+        require(listOfNotNull(task.startDateTime, task.dueDateTime).all(CalendarDates::isValid)) {
+            "Task dates must be valid calendar dates"
+        }
         require(task.startDateTime == null || task.dueDateTime == null || task.startDateTime <= task.dueDateTime) {
             "Task due date cannot be earlier than its start date"
         }
@@ -45,18 +53,25 @@ class OfflineTaskRepository(
             createdAt = if (task.id == 0L) now else task.createdAt,
             updatedAt = now,
         )
-        val rowId = taskDao.upsert(normalized.toEntity())
+        val rowId = taskDao.saveWithSubtasks(normalized.toEntity(), titles.filter { it.isNotBlank() }.map { it.trim() }, now)
         return if (task.id == 0L) rowId else task.id
     }
 
     override suspend fun deleteTask(taskId: Long): Boolean = taskDao.deleteById(taskId) == 1
 
     override suspend fun setTaskCompleted(taskId: Long, isCompleted: Boolean): Boolean =
-        taskDao.setCompleted(taskId, isCompleted, clock.nowMillis()) == 1
+        taskDao.completeScheduled(taskId, isCompleted, clock.nowMillis())
 
     override suspend fun saveSubtask(subtask: Subtask): Long {
         require(subtask.title.isNotBlank()) { "Subtask title cannot be blank" }
+        require(subtask.taskId > 0) { "Save the task before adding subtasks" }
+        require(subtask.sortOrder >= 0) { "Subtask order cannot be negative" }
         val now = clock.nowMillis()
+        if (subtask.id != 0L) {
+            check(taskDao.updateSubtask(subtask.id, subtask.taskId, subtask.title.trim(),
+                subtask.isCompleted, subtask.sortOrder, now) == 1) { "Subtask no longer exists" }
+            return subtask.id
+        }
         val normalized = subtask.copy(
             title = subtask.title.trim(),
             createdAt = if (subtask.id == 0L) now else subtask.createdAt,

@@ -1,55 +1,57 @@
 package com.example.taskfoundation
 
+import android.os.Build
 import android.os.Bundle
+import android.content.Intent
+import android.util.Log
+import android.view.WindowManager
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.taskfoundation.ui.TaskLineTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.taskfoundation.ui.AppViewModelFactory
-import com.example.taskfoundation.ui.projects.ProjectsViewModel
-import com.example.taskfoundation.ui.tasks.TasksViewModel
+import com.example.taskfoundation.ui.TaskLineScreen
 
 class MainActivity : ComponentActivity() {
+    private val requestedTask = mutableStateOf<Long?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Liquid Glass: enable system background blur on API 31+ (Android 12).
+        // This makes glass surfaces blur the wallpaper/content behind the window,
+        // matching Apple's Liquid Glass depth and translucency effect.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            window.setBackgroundBlurRadius(20)
+            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+        }
+        if (savedInstanceState == null) requestedTask.value = intent.getLongExtra("taskId", -1).takeIf { it > 0 }
         val factory = AppViewModelFactory((application as TaskFoundationApplication).container)
         setContent {
-            MaterialTheme {
-                FoundationScreen(factory)
+            TaskLineTheme {
+                TaskLineScreen(viewModel(factory = factory), viewModel(factory = factory), viewModel(factory = factory),
+                    viewModel(factory = factory), requestedTask.value, { requestedTask.value = null })
             }
         }
     }
-}
 
-@Composable
-private fun FoundationScreen(factory: AppViewModelFactory) {
-    val tasksViewModel: TasksViewModel = viewModel(factory = factory)
-    val projectsViewModel: ProjectsViewModel = viewModel(factory = factory)
-    val tasksState by tasksViewModel.uiState.collectAsStateWithLifecycle()
-    val projectsState by projectsViewModel.uiState.collectAsStateWithLifecycle()
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        requestedTask.value = intent.getLongExtra("taskId", -1).takeIf { it > 0 }
+    }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("Tasks", style = MaterialTheme.typography.headlineMedium)
-            Text("${tasksState.tasks.size} tasks · ${projectsState.projects.size} projects")
-            tasksState.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            projectsState.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            try { (application as TaskFoundationApplication).container.reminders.reconcile() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { Log.e("TaskReminders", "Unable to refresh reminders", error) }
         }
     }
 }

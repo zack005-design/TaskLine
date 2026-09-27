@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProjectDao {
+    @Query("SELECT * FROM projects")
+    suspend fun all(): List<ProjectEntity>
     @Query("SELECT * FROM projects ORDER BY name COLLATE NOCASE ASC")
     fun observeAll(): Flow<List<ProjectEntity>>
 

@@ -10,6 +10,7 @@ import com.example.taskfoundation.domain.model.Tag
 import com.example.taskfoundation.domain.model.Task
 import com.example.taskfoundation.domain.model.TaskPriority
 import com.example.taskfoundation.domain.model.TaskStatus
+import com.example.taskfoundation.domain.model.RepeatRule
 
 fun TaskEntity.toDomain() = Task(
     id = id,
@@ -24,6 +25,9 @@ fun TaskEntity.toDomain() = Task(
     isCompleted = isCompleted,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    dueTimeMinutes = dueTimeMinutes, reminderMinutes = reminderMinutes,
+    repeatRule = RepeatRule.valueOf(repeatRule), repeatInterval = repeatInterval, repeatAnchor = repeatAnchor,
+    snoozedUntil = snoozedUntil, lastNotifiedAt = lastNotifiedAt, importKey = importKey,
 )
 
 fun Task.toEntity() = TaskEntity(
@@ -39,6 +43,9 @@ fun Task.toEntity() = TaskEntity(
     isCompleted = isCompleted,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    dueTimeMinutes = dueTimeMinutes, reminderMinutes = reminderMinutes,
+    repeatRule = repeatRule.name, repeatInterval = repeatInterval, repeatAnchor = repeatAnchor,
+    snoozedUntil = snoozedUntil, lastNotifiedAt = lastNotifiedAt, importKey = importKey,
 )
 
 fun SubtaskEntity.toDomain() = Subtask(id, taskId, title, isCompleted, sortOrder, createdAt, updatedAt)

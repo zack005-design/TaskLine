@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Top bar: wide, mint green — centered in safe zone (18dp inset from each edge of 108dp canvas) -->
+    <path android:fillColor="#CAE9A3"
+        android:pathData="M24,34 L84,34 Q90,34 90,40 L90,47 Q90,53 84,53 L24,53 Q18,53 18,47 L18,40 Q18,34 24,34 Z" />
+    <!-- Middle bar: medium, white -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M32,58 L76,58 Q82,58 82,64 L82,71 Q82,77 76,77 L32,77 Q26,77 26,71 L26,64 Q26,58 32,58 Z" />
+    <!-- Bottom bar: narrow, teal -->
+    <path android:fillColor="#80D5C4"
+        android:pathData="M40,82 L68,82 Q74,82 74,88 L74,95 Q74,101 68,101 L40,101 Q34,101 34,95 L34,88 Q34,82 40,82 Z" />
+</vector>

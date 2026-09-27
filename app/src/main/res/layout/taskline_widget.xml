@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="20dp" android:background="@drawable/widget_background">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_title" android:textSize="20sp" android:textStyle="bold" android:textColor="@color/widget_text" />
+    <TextView android:id="@+id/widget_summary" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_loading" android:textSize="13sp" android:textColor="@color/widget_secondary" android:layout_marginBottom="8dp" />
+    <TextView android:id="@+id/widget_task_one" style="@style/WidgetTaskRow" />
+    <TextView android:id="@+id/widget_task_two" style="@style/WidgetTaskRow" />
+    <TextView android:id="@+id/widget_task_three" style="@style/WidgetTaskRow" />
+</LinearLayout>
+
