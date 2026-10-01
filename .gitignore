@@ -12,3 +12,11 @@
 key.properties
 .DS_Store
 Thumbs.db
+
+# Local agent coordination and recovery material
+/TASK_COORDINATION.md
+/AGENTS.md
+/task-safety-backups/
+/.agents/
+/.codex/
+/.aws/

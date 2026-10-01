@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TaskFoundation" parent="Theme.TaskFoundation.Base">
+        <!-- Keep the Android 12 window blur attribute out of pre-31 resources. -->
+        <item name="android:windowBackgroundBlurRadius">20dp</item>
+    </style>
+</resources>

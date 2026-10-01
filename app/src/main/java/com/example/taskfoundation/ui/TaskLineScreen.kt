@@ -172,11 +172,11 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
         },
         bottomBar = {
             GlassPill(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AppleTab("Tasks", 0, tab == 0, { tab = 0 }, Modifier.weight(1f))
-                    AppleTab("Calendar", 3, tab == 2, { tab = 2 }, Modifier.weight(1f))
-                    AppleTab("Projects", 1, tab == 1, { tab = 1 }, Modifier.weight(1f))
-                    AppleTab("Stats", 4, tab == 3, { tab = 3 }, Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AppleTab("Tasks", 0, tab == 0, { tab = 0 }, Modifier.weight(1f).fillMaxHeight())
+                    AppleTab("Calendar", 3, tab == 2, { tab = 2 }, Modifier.weight(1f).fillMaxHeight())
+                    AppleTab("Projects", 1, tab == 1, { tab = 1 }, Modifier.weight(1f).fillMaxHeight())
+                    AppleTab("Stats", 4, tab == 3, { tab = 3 }, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         },
@@ -239,7 +239,7 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
                 item {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(quickTitle, { quickTitle = it }, singleLine = true,
+                        TaskLineTextField(quickTitle, { quickTitle = it }, singleLine = true,
                             enabled = !busy, label = { Text("Add a task") }, modifier = Modifier.weight(1f))
                         FilledTonalButton(enabled = quickTitle.isNotBlank() && !busy, onClick = {
                             tasksViewModel.saveTask(Task(title = quickTitle.trim(), projectId = projectFilter,
@@ -256,7 +256,7 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
                             unfocusedIndicatorColor = Color.Transparent, focusedIndicatorColor = Color.Transparent,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        modifier = Modifier.fillMaxWidth())
+                        modifier = Modifier.fillMaxWidth().testTag("task_search").semantics { contentDescription = "Search tasks" })
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("All", "Today", "Upcoming", "Unscheduled", "Overdue", "Active", "Completed").forEachIndexed { index, option ->
@@ -377,7 +377,7 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
     }
     CompletionBurst(celebration, Modifier.align(androidx.compose.ui.Alignment.Center).size(240.dp))
     }
-    if (showFocus) FocusTimerSheet(focusState, onStop = { focusViewModel.stop(); showFocus = false }, onDismiss = { showFocus = false })
+    if (showFocus) FocusTimerSheet(focusState, onStop = { focusViewModel.stop { showFocus = false } }, onDismiss = { showFocus = false })
     detailsId?.let { id ->
         tasks.tasks.find { it.id == id }?.let { task ->
             key(id) { TaskDetailsDialog(task, tasksViewModel, onStartFocus = { focusViewModel.start(it); detailsId = null; showFocus = true }) { detailsId = null } }
@@ -418,8 +418,8 @@ private fun ProjectEditor(original: Project?, busy: Boolean, error: String?,
     AlertDialog(onDismissRequest = onDismiss, title = { Text(if (original == null) "New project" else "Edit project") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Project name") }, singleLine = true, enabled = !busy)
-                OutlinedTextField(description, { description = it }, label = { Text("Description") }, enabled = !busy)
+                TaskLineTextField(name, { name = it }, label = { Text("Project name") }, singleLine = true, enabled = !busy)
+                TaskLineTextField(description, { description = it }, label = { Text("Description") }, enabled = !busy)
                 Text("Project color", style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     val options = listOf(0xFF0062D6L, 0xFF4CAF50L, 0xFFFF5722L, 0xFF9C27B0L, 0xFFFF9800L, 0xFF00BCD4L, null)
@@ -448,7 +448,7 @@ internal fun <T> Choice(title: String, selected: String, options: List<T>, enabl
     label: (T) -> String = { it.toString() }, onSelected: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
             Text("$title: $selected")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -469,9 +469,10 @@ private fun DeleteConfirmation(title: String, message: String, onDismiss: () -> 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DateField(label: String, value: Long?, enabled: Boolean, onChanged: (Long?) -> Unit) {
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     var open by rememberSaveable { mutableStateOf(false) }
     OutlinedButton(
-        onClick = { open = true },
+        onClick = { focusManager.clearFocus(); open = true },
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     ) {

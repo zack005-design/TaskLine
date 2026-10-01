@@ -12,6 +12,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -34,36 +35,34 @@ fun AddTaskSheet(original: Task?, projects: List<Project>, defaultProject: Long?
     var reminder by rememberSaveable { mutableStateOf(original?.reminderMinutes) }
     var repeat by rememberSaveable { mutableStateOf(original?.repeatRule?.name ?: RepeatRule.NONE.name) }
     var interval by rememberSaveable { mutableStateOf((original?.repeatInterval ?: 1).toString()) }
-    var pending by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+    var pending by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val currentBusy by rememberUpdatedState(busy)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true,
-        confirmValueChange = { !busy })
+        confirmValueChange = { !currentBusy })
     LaunchedEffect(Unit) { focus.requestFocus() }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState,
-        sheetGesturesEnabled = !busy) {
+        sheetGesturesEnabled = !busy, containerColor = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.94f).imePadding().padding(horizontal = 20.dp)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(if (original == null) "Log a task" else "Edit task", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
                 TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
             }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(title, { title = it }, label = { Text("Title") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().focusRequester(focus))
-                OutlinedTextField(description, { description = it }, label = { Text("Description") }, enabled = !busy)
+                TaskLineTextField(title, { title = it }, label = { Text("Title") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().focusRequester(focus))
+                TaskLineTextField(description, { description = it }, label = { Text("Description") }, enabled = !busy, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 5)
                 ProjectChipRow(projects, projectId, !busy) { projectId = it }
                 PrioritySelector(TaskPriority.valueOf(priority), !busy) { priority = it.name }
                 Text("Status", style = MaterialTheme.typography.labelLarge)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SingleChoiceSegmentedButtonRow {
-                        TaskStatus.entries.forEachIndexed { index, option ->
-                            SegmentedButton(selected = status == option.name, enabled = !busy,
-                                shape = SegmentedButtonDefaults.itemShape(index, TaskStatus.entries.size),
-                                onClick = {
-                                    status = option.name
-                                    if (option == TaskStatus.DONE) progress = 100f else if (progress == 100f) progress = 0f
-                                }) { Text(option.display()) }
+                    TaskStatus.entries.forEach { option ->
+                        AppleFilter(option.display(), status == option.name, enabled = !busy) {
+                            status = option.name
+                            if (option == TaskStatus.DONE) progress = 100f else if (progress == 100f) progress = 0f
                         }
                     }
                 }
+
                 Text("Progress: ${progress.toInt()}%")
                 Slider(value = progress, onValueChange = { progress = it }, valueRange = 0f..100f, steps = 99,
                     enabled = !busy && status != TaskStatus.DONE.name,
@@ -79,7 +78,7 @@ fun AddTaskSheet(original: Task?, projects: List<Project>, defaultProject: Long?
                 }
                 Text("Subtasks", style = MaterialTheme.typography.titleMedium)
                 if (original != null) Text("Add new subtasks here. Manage existing subtasks in Details.", style = MaterialTheme.typography.bodySmall)
-                InlineSubtaskList(pending, !busy) { pending = ArrayList(it) }
+                InlineSubtaskList(pending, !busy) { pending = it.toList() }
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
             }
         SaveButton(isSaving = busy, enabled = title.isNotBlank() && !busy &&
@@ -102,9 +101,9 @@ fun AddTaskSheet(original: Task?, projects: List<Project>, defaultProject: Long?
 fun ProjectChipRow(projects: List<Project>, selected: Long?, enabled: Boolean = true, onSelect: (Long?) -> Unit) {
     Text("Project", style = MaterialTheme.typography.labelLarge)
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(selected == null, { onSelect(null) }, enabled = enabled, label = { Text("No project") })
+        AppleFilter("No project", selected == null, enabled) { onSelect(null) }
         projects.forEach { project ->
-            FilterChip(selected == project.id, { onSelect(project.id) }, enabled = enabled, label = { Text(project.name) })
+            AppleFilter(project.name, selected == project.id, enabled) { onSelect(project.id) }
         }
     }
 }
@@ -114,10 +113,7 @@ fun PrioritySelector(selected: TaskPriority, enabled: Boolean = true, onSelect: 
     Text("Priority", style = MaterialTheme.typography.labelLarge)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TaskPriority.entries.forEach { priority ->
-            val color = priorityColor(priority)
-            FilterChip(selected == priority, { onSelect(priority) }, enabled = enabled,
-                label = { Text(priority.display()) },
-                leadingIcon = { Box(Modifier.size(8.dp).background(color, MaterialTheme.shapes.small)) })
+            AppleFilter(priority.display(), selected == priority, enabled) { onSelect(priority) }
         }
     }
 }
@@ -126,7 +122,7 @@ fun PrioritySelector(selected: TaskPriority, enabled: Boolean = true, onSelect: 
 fun InlineSubtaskList(titles: List<String>, enabled: Boolean, onChange: (List<String>) -> Unit) {
     titles.forEachIndexed { index, title ->
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            OutlinedTextField(title, { value -> onChange(titles.toMutableList().also { it[index] = value }) },
+            TaskLineTextField(title, { value -> onChange(titles.toMutableList().also { it[index] = value }) },
                 label = { Text("Subtask ${index + 1}") }, enabled = enabled, modifier = Modifier.weight(1f))
             IconButton(enabled = enabled, onClick = { onChange(titles.filterIndexed { i, _ -> i != index }) },
                 modifier = Modifier.semantics { contentDescription = "Remove subtask ${index + 1}" }) { Text("×") }
@@ -137,10 +133,11 @@ fun InlineSubtaskList(titles: List<String>, enabled: Boolean, onChange: (List<St
 
 @Composable
 fun CollapsibleSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val focusManager = LocalFocusManager.current
     var expanded by rememberSaveable { mutableStateOf(false) }
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "sectionChevron")
     Column {
-        TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth()
+        TextButton(onClick = { focusManager.clearFocus(); expanded = !expanded }, modifier = Modifier.fillMaxWidth()
             .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }) {
             Text(title, Modifier.weight(1f))
             Text("⌄", Modifier.rotate(rotation))

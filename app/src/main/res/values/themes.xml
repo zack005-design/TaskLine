@@ -1,13 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.TaskFoundation" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.TaskFoundation.Base" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
-        <!--
-            API 31+ (Android 12): enables the window background blur layer.
-            This is the Android equivalent of Apple's Liquid Glass frosted-glass material.
-            Silently ignored on API < 31 — no crash, falls back to the alpha-tinted glass surface.
-        -->
-        <item name="android:windowBackgroundBlurRadius">20dp</item>
     </style>
+    <style name="Theme.TaskFoundation" parent="Theme.TaskFoundation.Base" />
 </resources>

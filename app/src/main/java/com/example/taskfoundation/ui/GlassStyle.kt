@@ -40,9 +40,9 @@ fun GlassCard(
 /** Android approximation of a floating translucent navigation surface. */
 @Composable
 fun GlassPill(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(modifier = modifier, shape = CircleShape,
+    Surface(modifier = modifier, shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = .96f),
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f)),
-        shadowElevation = 8.dp, content = content)
+        shadowElevation = 3.dp, content = content)
 }

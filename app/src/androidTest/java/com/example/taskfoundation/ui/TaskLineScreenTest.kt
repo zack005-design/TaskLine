@@ -1,6 +1,7 @@
 package com.example.taskfoundation.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.lifecycle.ViewModelStore
@@ -115,17 +116,18 @@ class TaskLineScreenTest {
         compose.onNodeWithText("Save task").performClick()
         awaitText("Sketch new dashboard")
         compose.onNodeWithText("Tasks", useUnmergedTree = true).performClick()
-        compose.onNodeWithTag("taskline_content").performScrollToNode(hasText("Search tasks"))
-        compose.onNodeWithText("Search tasks").performTextInput("Sketch")
+        compose.onNodeWithTag("taskline_content").performScrollToNode(hasTestTag("task_search"))
+        compose.onNodeWithTag("task_search").performTextInput("Sketch")
         awaitText("Sketch new dashboard")
-        compose.onNodeWithTag("taskline_content").performScrollToNode(hasText("Search tasks"))
-        compose.onNodeWithText("Search tasks").performTextReplacement("No matching task")
-        awaitText("No tasks here yet")
+        compose.onNodeWithTag("taskline_content").performScrollToNode(hasTestTag("task_search"))
+        compose.onNodeWithTag("task_search").performTextReplacement("No matching task")
+        awaitText("No matching tasks")
     }
 
     @Test fun dateTimeReminderAndCustomRepeatAreSavedThroughEditor() {
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
         compose.onNodeWithText("Title").performTextInput("Weekly planning")
+        compose.onNodeWithText("Schedule").performScrollTo().performClick()
         compose.onNodeWithText("Due date: Not set").performScrollTo().performClick()
         compose.onNodeWithText("Set date").performClick()
         compose.onNodeWithText("Due time: Not set").performScrollTo().performClick()
@@ -180,6 +182,77 @@ class TaskLineScreenTest {
         compose.onNodeWithTag("taskline_content").performScrollToNode(hasText("Unscheduled"))
         compose.onNodeWithText("Unscheduled").performScrollTo().performClick()
         awaitText("Capture an idea")
+    }
+
+    @Test fun inlineSubtasksAndProjectColorPersistThroughSheets() {
+        compose.onNodeWithText("Projects", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("New project", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Project name").performTextInput("Colored project")
+        compose.onNodeWithContentDescription("Purple").performScrollTo().performClick()
+        compose.onNodeWithText("Save project").performClick()
+        awaitText("View tasks")
+        compose.onNodeWithText("View tasks").performClick()
+        compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Title").performTextInput("Bundled task")
+        compose.onNodeWithText("+ Add subtask").performScrollTo().performClick()
+        compose.onNodeWithText("Subtask 1").performScrollTo().performTextInput("First child")
+        compose.onNodeWithText("+ Add subtask").performScrollTo().performClick()
+        compose.onNodeWithText("Subtask 2").performScrollTo().performTextInput("Remove me")
+        compose.onNodeWithContentDescription("Remove subtask 2").performClick()
+        compose.onNodeWithText("Save task").performClick()
+        awaitText("Bundled task")
+        runBlocking {
+            val task = database.taskDao().all().single()
+            assertNotNull(task.projectId)
+            assertEquals("First child", database.taskDao().allSubtasks().single().title)
+            assertEquals(0xFF9C27B0L, database.projectDao().observeAll().first().single().color)
+        }
+        compose.onNodeWithText("Stats", useUnmergedTree = true).performClick()
+        awaitText("Last 7 days")
+        screenshot("stats")
+    }
+
+    @Test fun focusCanCloseReopenAndStopWithoutCompletingTask() {
+        compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Title").performTextInput("Focus test")
+        screenshot("task-sheet")
+        compose.onNodeWithText("Save task").performClick()
+        awaitText("Focus test")
+        compose.onNodeWithContentDescription("Details Focus test").performScrollTo().performClick()
+        compose.onNodeWithText("Focus", useUnmergedTree = true).performClick()
+        awaitText("Time to focus")
+        screenshot("focus")
+        compose.onNodeWithText("Close").performClick()
+        compose.onNode(hasText("Focus ", substring = true) and hasClickAction()).performClick()
+        compose.onNodeWithText("Stop focus").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Time to focus").fetchSemanticsNodes().isEmpty() }
+        runBlocking { assertFalse(database.taskDao().all().single().isCompleted) }
+    }
+
+    @Test fun swipeCanCompleteReopenAndRequestDeletion() {
+        compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Title").performTextInput("Swipe test")
+        compose.onNodeWithText("Save task").performClick()
+        awaitText("Swipe test")
+        val id = runBlocking { database.taskDao().all().single().id }
+        compose.onNodeWithTag("task_card_$id").performScrollTo().performTouchInput { swipeRight() }
+        compose.waitUntil(10_000) { runBlocking { database.taskDao().get(id)!!.isCompleted } }
+        compose.onNodeWithTag("task_card_$id").performScrollTo().performTouchInput { swipeRight() }
+        compose.waitUntil(10_000) { runBlocking { !database.taskDao().get(id)!!.isCompleted } }
+        compose.onNodeWithTag("task_card_$id").performTouchInput { swipeLeft() }
+        compose.onNodeWithText("Delete task?").assertIsDisplayed()
+        runBlocking { assertNotNull(database.taskDao().get(id)) }
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithContentDescription("Complete Swipe test").assertIsOff()
+    }
+
+    private fun screenshot(name: String) {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val heading = when (name) { "task-sheet" -> "Log a task"; "focus" -> "Time to focus"; else -> "Your stats" }
+        val bitmap = compose.onNode(isRoot() and hasAnyDescendant(hasText(heading))).captureToImage().asAndroidBitmap()
+        java.io.File(context.getExternalFilesDir(null), "taskline-$name.png").outputStream().use {
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
     }
 
     private fun awaitText(text: String) {

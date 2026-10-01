@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -65,15 +66,19 @@ fun TaskCard(task: Task, project: String, dates: String, busy: Boolean,
     var progressTarget by remember(task.id) { mutableFloatStateOf(0f) }
     LaunchedEffect(task.progress) { progressTarget = task.progress / 100f }
     val animatedProgress by animateFloatAsState(progressTarget, tween(600), label = "taskProgress")
+    val currentBusy by rememberUpdatedState(busy)
+    val completed by rememberUpdatedState(task.isCompleted)
+    val complete by rememberUpdatedState(onComplete)
+    val delete by rememberUpdatedState(onDelete)
     val swipeState = rememberSwipeToDismissBoxState(confirmValueChange = { value ->
-        if (!busy) when (value) {
-            SwipeToDismissBoxValue.StartToEnd -> onComplete(!task.isCompleted)
-            SwipeToDismissBoxValue.EndToStart -> onDelete()
+        if (!currentBusy) when (value) {
+            SwipeToDismissBoxValue.StartToEnd -> complete(!completed)
+            SwipeToDismissBoxValue.EndToStart -> delete()
             else -> Unit
         }
         false
     })
-    SwipeToDismissBox(state = swipeState, gesturesEnabled = !busy, backgroundContent = {
+    SwipeToDismissBox(state = swipeState, modifier = Modifier.testTag("task_card_${task.id}"), gesturesEnabled = !busy, backgroundContent = {
         val completing = swipeState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
         Box(Modifier.fillMaxSize().background(if (completing) MaterialTheme.colorScheme.secondaryContainer
             else MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.medium).padding(20.dp),
@@ -165,7 +170,7 @@ fun EmptyPanel(title: String, message: String, kind: Int = 0, lottieRes: Int? = 
             else Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
                 Box(Modifier.padding(20.dp)) { NavigationGlyph(kind) }
             }
-        } else Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.offset(y = offset.dp)) {
+        } else Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(0, offset.dp.roundToPx()) }) {
             Box(Modifier.padding(20.dp)) { NavigationGlyph(kind) }
         }
         Text(title, style = MaterialTheme.typography.titleLarge)
@@ -177,25 +182,42 @@ fun EmptyPanel(title: String, message: String, kind: Int = 0, lottieRes: Int? = 
 @Composable
 fun AppleTab(title: String, kind: Int, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val ink = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Column(modifier.clip(CircleShape)
+    Column(modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
         .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = .10f) else Color.Transparent)
         .selectable(selected, onClick = onClick, role = Role.Tab)
-        .padding(horizontal = 8.dp, vertical = 9.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        .heightIn(min = 64.dp).padding(horizontal = 2.dp, vertical = 9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
         CompositionLocalProvider(LocalContentColor provides ink) { NavigationGlyph(kind) }
-        Text(title, style = MaterialTheme.typography.labelSmall, color = ink, fontWeight = FontWeight.SemiBold)
+        Text(title, style = MaterialTheme.typography.labelSmall, color = ink, fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
 @Composable
-fun AppleFilter(title: String, selected: Boolean, onClick: () -> Unit) {
+fun AppleFilter(title: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     Box(Modifier.clip(CircleShape)
         .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
-        .selectable(selected, onClick = onClick, role = Role.RadioButton)
+        .selectable(selected, enabled = enabled, onClick = onClick, role = Role.RadioButton)
         .heightIn(min = 48.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
         Text(title, style = MaterialTheme.typography.labelLarge,
             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** Filled grouped-form field; preserves Android editing, labels, and accessibility semantics. */
+@Composable
+fun TaskLineTextField(value: String, onValueChange: (String) -> Unit, label: @Composable () -> Unit,
+    modifier: Modifier = Modifier, enabled: Boolean = true, singleLine: Boolean = false,
+    minLines: Int = 1, maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE) {
+    TextField(value, onValueChange, modifier = modifier, enabled = enabled, label = label,
+        singleLine = singleLine, minLines = minLines, maxLines = maxLines,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent))
 }
 
 @Composable

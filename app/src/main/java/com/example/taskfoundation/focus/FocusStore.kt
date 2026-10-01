@@ -8,9 +8,9 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /** Persists the one active session so a recreated activity/process can recover it. */
-class FocusStore(context: Context) {
+class FocusStore(context: Context, preferencesName: String = "focus-session") {
     private val context = context.applicationContext
-    private val prefs = this.context.getSharedPreferences("focus-session", Context.MODE_PRIVATE)
+    private val prefs = this.context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
 
     fun read(now: Long = System.currentTimeMillis()): FocusState = synchronized(lock) {
         val id = prefs.getString("session", null) ?: return@synchronized FocusState()
@@ -30,11 +30,14 @@ class FocusStore(context: Context) {
         read()
     }
 
-    fun schedule(state: FocusState): Operation {
+    fun schedule(state: FocusState): Operation? = synchronized(lock) {
+        val current = read()
+        // A cancelled restore/start must never replace a newer session's worker.
+        if (current.sessionId != state.sessionId || !current.isActive) return@synchronized null
         val work = OneTimeWorkRequestBuilder<FocusCompletionWorker>()
             .setInputData(workDataOf("session" to state.sessionId))
             .setInitialDelay((state.endsAt - System.currentTimeMillis()).coerceAtLeast(0), TimeUnit.MILLISECONDS).build()
-        return WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, work)
+        WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, work)
     }
 
     fun complete(id: String) = synchronized(lock) {

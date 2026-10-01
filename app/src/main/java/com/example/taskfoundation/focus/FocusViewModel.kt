@@ -21,7 +21,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
                 val saved = withContext(Dispatchers.IO) { store.read() }
                 mutableState.value = saved
                 if (saved.isActive) {
-                    withContext(Dispatchers.IO) { store.schedule(saved).result.get() }
+                    withContext(Dispatchers.IO) { store.schedule(saved)?.result?.get() }
                     tick()
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
@@ -35,7 +35,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val saved = withContext(Dispatchers.IO) { store.start(task, minutes) }
                 mutableState.value = saved
-                withContext(Dispatchers.IO) { store.schedule(saved).result.get() }
+                withContext(Dispatchers.IO) { store.schedule(saved)?.result?.get() }
                 tick()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) { mutableState.update { it.copy(error = "Unable to schedule focus. Stop and try again.") } }
@@ -55,12 +55,13 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun stop() {
+    fun stop(onStopped: () -> Unit = {}) {
         timer?.cancel()
         timer = viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { store.stop().result.get() }
                 mutableState.value = FocusState()
+                onStopped()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) { mutableState.update { it.copy(error = "Unable to stop focus. Please retry.") } }
         }
