@@ -19,7 +19,7 @@ class AddTaskSheetStateTest {
                 AddTaskSheet(null, emptyList(), null, false, null, null, {}, { task, titles -> saved = task to titles })
             }
         }
-        compose.onNodeWithText("Title").performTextInput("Unsaved draft")
+        compose.onNodeWithContentDescription("Title").performTextInput("Unsaved draft")
         compose.onNodeWithText("+ Add subtask").performScrollTo().performClick()
         compose.onNodeWithText("Subtask 1").performScrollTo().performTextInput("Remember this child")
         restoration.emulateSavedInstanceStateRestore()

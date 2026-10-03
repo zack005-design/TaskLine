@@ -57,7 +57,7 @@ class OfflineTaskRepository(
         return if (task.id == 0L) rowId else task.id
     }
 
-    override suspend fun deleteTask(taskId: Long): Boolean = taskDao.deleteById(taskId) == 1
+    override suspend fun deleteTask(taskId: Long): Boolean = taskDao.deleteWithHistory(taskId, clock.nowMillis()) == 1
 
     override suspend fun setTaskCompleted(taskId: Long, isCompleted: Boolean): Boolean =
         taskDao.completeScheduled(taskId, isCompleted, clock.nowMillis())

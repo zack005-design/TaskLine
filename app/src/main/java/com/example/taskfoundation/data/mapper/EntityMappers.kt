@@ -27,6 +27,7 @@ fun TaskEntity.toDomain() = Task(
     updatedAt = updatedAt,
     dueTimeMinutes = dueTimeMinutes, reminderMinutes = reminderMinutes,
     repeatRule = RepeatRule.valueOf(repeatRule), repeatInterval = repeatInterval, repeatAnchor = repeatAnchor,
+    durationMinutes = durationMinutes, deadline = deadline,
     snoozedUntil = snoozedUntil, lastNotifiedAt = lastNotifiedAt, importKey = importKey,
 )
 
@@ -45,6 +46,7 @@ fun Task.toEntity() = TaskEntity(
     updatedAt = updatedAt,
     dueTimeMinutes = dueTimeMinutes, reminderMinutes = reminderMinutes,
     repeatRule = repeatRule.name, repeatInterval = repeatInterval, repeatAnchor = repeatAnchor,
+    durationMinutes = durationMinutes, deadline = deadline,
     snoozedUntil = snoozedUntil, lastNotifiedAt = lastNotifiedAt, importKey = importKey,
 )
 

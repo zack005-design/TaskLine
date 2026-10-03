@@ -35,10 +35,10 @@ fun DataToolsScreen(viewModel: DataToolsViewModel, projects: List<Project>, onCl
     }
     val openIcs = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(viewModel::previewFile) }
     Dialog(onDismissRequest = { if (!state.busy) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.safeDrawingPadding().padding(16.dp)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.safeDrawingPadding().padding(20.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Calendar import", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    Text("Calendar import", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                     TextButton(enabled = !state.busy, onClick = onClose) { Text("Close") }
                 }
                 LazyColumn(Modifier.weight(1f).testTag("calendar_content"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -46,7 +46,7 @@ fun DataToolsScreen(viewModel: DataToolsViewModel, projects: List<Project>, onCl
                     state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
                     state.message?.let { item { Text(it, color = MaterialTheme.colorScheme.primary) } }
                     item {
-                        Text("Import your calendar", style = MaterialTheme.typography.titleMedium)
+                        TaskLineSection("Bring your plans together")
                         Text("Bring Google Calendar or another synced Android calendar into TaskLine as tasks. This is a one-time copy; later calendar changes do not sync automatically.")
                     }
                     item {

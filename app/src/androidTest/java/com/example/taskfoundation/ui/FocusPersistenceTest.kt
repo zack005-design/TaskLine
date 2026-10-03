@@ -15,6 +15,20 @@ class FocusPersistenceTest {
     private val store = FocusStore(context, name)
     @After fun clearTestData() { prefs.edit().clear().commit() }
 
+    @Test fun pausedTimeSurvivesRecreationAndCannotCompleteInBackground() {
+        val task = Task(id = 5, title = "Paused focus", createdAt = 0, updatedAt = 0)
+        store.start(task, 15)
+        val paused = store.pause()
+        assertTrue(paused.isPaused)
+        assertFalse(paused.isActive)
+        val restored = FocusStore(context, name).read(System.currentTimeMillis() + 3_600_000)
+        assertEquals(paused.remainingSeconds, restored.remainingSeconds)
+        store.complete(paused.sessionId!!)
+        assertTrue(store.read().isPaused)
+        assertTrue(store.resume().isActive)
+        assertFalse(store.read().isPaused)
+    }
+
     @Test fun restoredSessionKeepsDeadlineAndStaleCompletionCannotFinishReplacement() {
         val task = Task(id = 1, title = "Focus persistence test", createdAt = 0, updatedAt = 0)
         val first = store.start(task, 1)

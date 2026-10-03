@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
+import com.example.taskfoundation.domain.model.TaskStatus
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -118,6 +120,16 @@ class TasksViewModel(
     fun setCompleted(taskId: Long, completed: Boolean, onCompleted: () -> Unit = {}) = mutate {
         check(repository.setTaskCompleted(taskId, completed)) { "Task no longer exists" }
         onCompleted()
+    }
+
+    fun moveTask(taskId: Long, status: TaskStatus) = mutate {
+        if (status == TaskStatus.DONE) {
+            check(repository.setTaskCompleted(taskId, true)) { "Task no longer exists" }
+        } else {
+            val latest = checkNotNull(repository.observeTask(taskId).first()) { "Task no longer exists" }
+            repository.saveTask(latest.copy(status = status, isCompleted = false,
+                progress = if (latest.isCompleted) 0 else latest.progress))
+        }
     }
 
     fun deleteTask(taskId: Long) = mutate {

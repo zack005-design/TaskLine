@@ -3,6 +3,9 @@ package com.example.taskfoundation.ui.backup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.example.taskfoundation.ui.TaskLineSheet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,16 +22,17 @@ fun BackupDialog(viewModel: BackupViewModel, onDismiss: () -> Unit) {
     val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
         it?.let(viewModel::inspect)
     }
-    AlertDialog(
-        onDismissRequest = { if (!state.busy) { viewModel.cancelRestore(); onDismiss() } },
-        title = { Text(if (state.preview == null) "Backup and restore" else "Replace current data?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    TaskLineSheet(
+        onDismiss = { if (!state.busy) { viewModel.cancelRestore(); onDismiss() } },
+        title = if (state.preview == null) "Backup and restore" else "Replace current data?",
+        busy = state.busy,
+        content = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (state.preview != null) {
                     Text("This backup contains ${state.preview}.")
-                    Text("Restoring replaces all current tasks, projects, subtasks and tags. Export a backup first if you want to keep your current data.")
+                    Text("Restoring replaces tasks, projects, subtasks, tags and your entire library, including habits, notes, attachments, comments and activity. Export a backup first to keep your current data. Older backups contain no library records.")
                 } else {
-                    Text("Save all your tasks, projects, subtasks and tags to a file, or restore a TaskLine backup.")
+                    Text("Save your tasks, projects, subtasks, tags and library, including habits, notes, attachments, comments and activity. Appearance and the running focus timer are device settings and are not included.")
                     Text("Backup files are readable JSON. Store them somewhere you trust.")
                     OutlinedButton(enabled = !state.busy, onClick = { export.launch("TaskLine-${LocalDate.now()}.json") }) {
                         Text("Export backup")
@@ -45,15 +49,13 @@ fun BackupDialog(viewModel: BackupViewModel, onDismiss: () -> Unit) {
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
-        confirmButton = {
+        footer = { Column(Modifier.fillMaxWidth()) {
             if (state.preview != null) {
                 TextButton(enabled = !state.busy, onClick = viewModel::restore) { Text("Replace and restore") }
             } else {
                 TextButton(enabled = !state.busy, onClick = onDismiss) { Text("Done") }
             }
-        },
-        dismissButton = {
             if (state.preview != null) TextButton(enabled = !state.busy, onClick = viewModel::cancelRestore) { Text("Cancel") }
-        },
+        } },
     )
 }

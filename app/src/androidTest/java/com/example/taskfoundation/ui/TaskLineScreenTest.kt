@@ -51,12 +51,13 @@ class TaskLineScreenTest {
         compose.onNodeWithText("View tasks").performClick()
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
         compose.onNodeWithText("Save task").assertIsNotEnabled()
-        compose.onNodeWithText("Title").performTextInput("Check persistence")
-        compose.onNodeWithText("Description").performTextInput("Created by a UI test")
+        compose.onNodeWithContentDescription("Title").performTextInput("Check persistence")
+        compose.onNodeWithContentDescription("Description").performTextInput("Created by a UI test")
         compose.onNodeWithText("Save task").performClick()
         awaitText("Check persistence")
-        compose.onNodeWithContentDescription("Edit Check persistence").performScrollTo().performClick()
-        compose.onNodeWithText("Title").performTextReplacement("Check saved task")
+        compose.onNodeWithContentDescription("Actions Check persistence").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Edit Check persistence").performClick()
+        compose.onNodeWithContentDescription("Title").performTextReplacement("Check saved task")
         compose.onNodeWithText("Save task").performClick()
         awaitText("Check saved task")
         compose.onNodeWithContentDescription("Complete Check saved task").performScrollTo().performClick()
@@ -64,7 +65,8 @@ class TaskLineScreenTest {
             runBlocking { database.taskDao().observeAll().first().single().isCompleted }
         }
         compose.onNodeWithText("Projects", useUnmergedTree = true).performClick()
-        compose.onNodeWithContentDescription("Delete Release plan").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Actions Release plan").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Delete Release plan").performClick()
         compose.onNodeWithText("Delete permanently").performClick()
         awaitText("Make room for a project")
         compose.onNodeWithText("Tasks", useUnmergedTree = true).performClick()
@@ -79,7 +81,7 @@ class TaskLineScreenTest {
 
     @Test fun manageSubtasksAndTagsThroughDetails() {
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Title").performTextInput("Plan release")
+        compose.onNodeWithContentDescription("Title").performTextInput("Plan release")
         compose.onNodeWithText("Save task").performClick()
         awaitText("Plan release")
         compose.onNodeWithContentDescription("Details Plan release").performScrollTo().performClick()
@@ -112,7 +114,7 @@ class TaskLineScreenTest {
         compose.onNodeWithText("Calendar", useUnmergedTree = true).performClick()
         compose.onNodeWithText("Timeline").performClick()
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Title").performTextInput("Sketch new dashboard")
+        compose.onNodeWithContentDescription("Title").performTextInput("Sketch new dashboard")
         compose.onNodeWithText("Save task").performClick()
         awaitText("Sketch new dashboard")
         compose.onNodeWithText("Tasks", useUnmergedTree = true).performClick()
@@ -126,7 +128,7 @@ class TaskLineScreenTest {
 
     @Test fun dateTimeReminderAndCustomRepeatAreSavedThroughEditor() {
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Title").performTextInput("Weekly planning")
+        compose.onNodeWithContentDescription("Title").performTextInput("Weekly planning")
         compose.onNodeWithText("Schedule").performScrollTo().performClick()
         compose.onNodeWithText("Due date: Not set").performScrollTo().performClick()
         compose.onNodeWithText("Set date").performClick()
@@ -156,7 +158,7 @@ class TaskLineScreenTest {
         val dateLabel = day.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"))
         compose.onNodeWithContentDescription("$dateLabel, 0 active tasks").performScrollTo().performClick()
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Title").performTextInput("Plan the selected day")
+        compose.onNodeWithContentDescription("Title").performTextInput("Plan the selected day")
         compose.onNodeWithText("Save task").performClick()
         awaitText("Plan the selected day")
         runBlocking {
@@ -173,9 +175,19 @@ class TaskLineScreenTest {
     }
 
     @Test fun quickEntryIsSavedAndFoundInUnscheduledFilter() {
+        compose.onNodeWithTag("taskline_content").performScrollToNode(hasText("Add a task"))
         compose.onNodeWithText("Add a task").performTextInput("Capture an idea")
+        compose.onNodeWithText("New task", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("Add", substring = false).assertIsEnabled()
+        compose.waitForIdle()
+        val capture = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        java.io.File(context.filesDir, "quick-entry-before.png").outputStream().use {
+            capture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        capture.recycle()
         compose.onNodeWithText("Add", substring = false).performClick()
-        awaitText("Capture an idea")
+        compose.waitUntil(10_000) { runBlocking { database.taskDao().all().any { it.title == "Capture an idea" } } }
         runBlocking {
             assertNull(database.taskDao().all().single().dueDateTime)
         }
@@ -193,7 +205,7 @@ class TaskLineScreenTest {
         awaitText("View tasks")
         compose.onNodeWithText("View tasks").performClick()
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Title").performTextInput("Bundled task")
+        compose.onNodeWithContentDescription("Title").performTextInput("Bundled task")
         compose.onNodeWithText("+ Add subtask").performScrollTo().performClick()
         compose.onNodeWithText("Subtask 1").performScrollTo().performTextInput("First child")
         compose.onNodeWithText("+ Add subtask").performScrollTo().performClick()
@@ -214,7 +226,7 @@ class TaskLineScreenTest {
 
     @Test fun focusCanCloseReopenAndStopWithoutCompletingTask() {
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Title").performTextInput("Focus test")
+        compose.onNodeWithContentDescription("Title").performTextInput("Focus test")
         screenshot("task-sheet")
         compose.onNodeWithText("Save task").performClick()
         awaitText("Focus test")
@@ -223,7 +235,7 @@ class TaskLineScreenTest {
         awaitText("Time to focus")
         screenshot("focus")
         compose.onNodeWithText("Close").performClick()
-        compose.onNode(hasText("Focus ", substring = true) and hasClickAction()).performClick()
+        compose.onNodeWithContentDescription("Open focus timer").performClick()
         compose.onNodeWithText("Stop focus").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Time to focus").fetchSemanticsNodes().isEmpty() }
         runBlocking { assertFalse(database.taskDao().all().single().isCompleted) }
@@ -231,7 +243,7 @@ class TaskLineScreenTest {
 
     @Test fun swipeCanCompleteReopenAndRequestDeletion() {
         compose.onNodeWithText("New task", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Title").performTextInput("Swipe test")
+        compose.onNodeWithContentDescription("Title").performTextInput("Swipe test")
         compose.onNodeWithText("Save task").performClick()
         awaitText("Swipe test")
         val id = runBlocking { database.taskDao().all().single().id }
@@ -248,8 +260,9 @@ class TaskLineScreenTest {
 
     private fun screenshot(name: String) {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val heading = when (name) { "task-sheet" -> "Log a task"; "focus" -> "Time to focus"; else -> "Your stats" }
-        val bitmap = compose.onNode(isRoot() and hasAnyDescendant(hasText(heading))).captureToImage().asAndroidBitmap()
+        val heading = when (name) { "task-sheet" -> "New task"; "focus" -> "Time to focus"; else -> "Your stats" }
+        val marker = if (name == "task-sheet") hasContentDescription("Title") else hasText(heading)
+        val bitmap = compose.onNode(isRoot() and hasAnyDescendant(marker)).captureToImage().asAndroidBitmap()
         java.io.File(context.getExternalFilesDir(null), "taskline-$name.png").outputStream().use {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
         }
@@ -264,4 +277,3 @@ class TaskLineScreenTest {
         }
     }
 }
-

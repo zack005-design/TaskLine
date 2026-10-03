@@ -47,4 +47,6 @@ data class TaskEntity(
     val snoozedUntil: Long? = null,
     val lastNotifiedAt: Long? = null,
     val importKey: String? = null,
+    val durationMinutes: Int? = null,
+    val deadline: Long? = null,
 )

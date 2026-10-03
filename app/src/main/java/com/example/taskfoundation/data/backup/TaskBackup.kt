@@ -18,6 +18,7 @@ data class TaskBackup(
     val subtasks: List<SubtaskEntity>,
     val tags: List<TagEntity>,
     val links: List<TaskTagCrossRef>,
+    val library: List<LibraryItem> = emptyList(),
 ) {
     fun validate() {
         fun valid(condition: Boolean) = require(condition) { "Invalid backup data. Nothing was restored." }
@@ -51,13 +52,21 @@ data class TaskBackup(
         subtasks.forEach { valid(it.taskId in taskIds && it.title.isNotBlank() && it.sortOrder >= 0) }
         links.forEach { valid(it.taskId in taskIds && it.tagId in tagIds) }
         valid(links.distinct().size == links.size)
+        valid(library.map { it.id }.distinct().size == library.size)
+        library.forEach {
+            it.validate()
+            if (it.kind in listOf("Comment", "Attachment")) {
+                val taskId = JSONObject(it.payload).getLong("taskId")
+                valid(taskId in taskIds && it.id.startsWith("$taskId:"))
+            }
+        }
     }
 }
 
 class BackupRepository(private val database: TaskDatabase) {
     suspend fun snapshot(): TaskBackup = database.withTransaction {
         val dao = database.backupDao()
-        TaskBackup(dao.projects(), dao.tasks(), dao.subtasks(), dao.tags(), dao.links())
+        TaskBackup(dao.projects(), dao.tasks(), dao.subtasks(), dao.tags(), dao.links(), database.libraryDao().all())
     }
 
     suspend fun restore(backup: TaskBackup) {
@@ -72,6 +81,8 @@ class BackupRepository(private val database: TaskDatabase) {
             dao.insertSubtasks(backup.subtasks)
             dao.insertTags(backup.tags)
             dao.insertLinks(backup.links)
+            database.libraryDao().clear()
+            database.libraryDao().insert(backup.library)
         }
     }
 }
@@ -86,7 +97,7 @@ object BackupJson {
             fields.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) }
         }
         return row(
-            "format" to "taskline-backup", "version" to 2,
+            "format" to "taskline-backup", "version" to 4,
             "dateEncoding" to "utc-midnight-calendar-date",
             "projects" to JSONArray(backup.projects.map {
                 row("id" to it.id, "name" to it.name, "description" to it.description,
@@ -101,7 +112,8 @@ object BackupJson {
                     "dueTimeMinutes" to it.dueTimeMinutes, "reminderMinutes" to it.reminderMinutes,
                     "repeatRule" to it.repeatRule, "repeatInterval" to it.repeatInterval,
                     "repeatAnchor" to it.repeatAnchor, "snoozedUntil" to it.snoozedUntil,
-                    "lastNotifiedAt" to it.lastNotifiedAt, "importKey" to it.importKey)
+                    "lastNotifiedAt" to it.lastNotifiedAt, "importKey" to it.importKey,
+                    "durationMinutes" to it.durationMinutes, "deadline" to it.deadline)
             }),
             "subtasks" to JSONArray(backup.subtasks.map {
                 row("id" to it.id, "taskId" to it.taskId, "title" to it.title,
@@ -112,14 +124,16 @@ object BackupJson {
                 row("id" to it.id, "name" to it.name, "color" to it.color, "createdAt" to it.createdAt)
             }),
             "taskTags" to JSONArray(backup.links.map { row("taskId" to it.taskId, "tagId" to it.tagId) }),
-        ).toString(2)
+            "library" to JSONArray(backup.library.map { row("id" to it.id, "kind" to it.kind,
+                "title" to it.title, "payload" to it.payload, "createdAt" to it.createdAt, "updatedAt" to it.updatedAt) }),
+        ).toString(2).also { require(it.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Backup exceeds 20 MB. Remove unnecessary attachments before exporting." } }
     }
 
     fun decode(json: String): TaskBackup {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Backup exceeds the 20 MB limit." }
         val root = JSONObject(json)
         val version = root.number("version")
-        require(root.string("format") == "taskline-backup" && version in 1L..2L &&
+        require(root.string("format") == "taskline-backup" && version in 1L..4L &&
             root.string("dateEncoding") == "utc-midnight-calendar-date") { "Unsupported TaskLine backup format." }
         fun <T> rows(key: String, convert: (JSONObject) -> T): List<T> {
             val array = root.getJSONArray(key)
@@ -139,11 +153,15 @@ object BackupJson {
                 repeatAnchor = if (version >= 2) it.nullableNumber("repeatAnchor") else null,
                 snoozedUntil = if (version >= 2) it.nullableNumber("snoozedUntil") else null,
                 lastNotifiedAt = if (version >= 2) it.nullableNumber("lastNotifiedAt") else null,
-                importKey = if (version >= 2) it.nullableString("importKey") else null) },
+                importKey = if (version >= 2) it.nullableString("importKey") else null,
+                durationMinutes = if (version >= 4) it.nullableInteger("durationMinutes") else null,
+                deadline = if (version >= 4) it.nullableNumber("deadline") else null) },
             rows("subtasks") { SubtaskEntity(it.number("id"), it.number("taskId"), it.string("title"),
                 it.boolean("isCompleted"), it.integer("sortOrder"), it.number("createdAt"), it.number("updatedAt")) },
             rows("tags") { TagEntity(it.number("id"), it.string("name"), it.nullableNumber("color"), it.number("createdAt")) },
             rows("taskTags") { TaskTagCrossRef(it.number("taskId"), it.number("tagId")) },
+            if (version >= 3) rows("library") { LibraryItem(it.string("id"), it.string("kind"),
+                it.string("title"), it.string("payload"), it.number("createdAt"), it.number("updatedAt")) } else emptyList(),
         ).also { it.validate() }
     }
 

@@ -40,7 +40,7 @@ class BackupViewModel(
         val backup = withContext(Dispatchers.IO) { files.read(uri) }
         pending = backup
         state.value = state.value.copy(preview =
-            "${backup.projects.size} projects, ${backup.tasks.size} tasks, ${backup.subtasks.size} subtasks and ${backup.tags.size} tags")
+            "${backup.projects.size} projects, ${backup.tasks.size} tasks, ${backup.subtasks.size} subtasks, ${backup.tags.size} tags and ${backup.library.size} library records")
     }
 
     fun cancelRestore() {

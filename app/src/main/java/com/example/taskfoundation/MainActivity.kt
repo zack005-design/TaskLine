@@ -19,6 +19,7 @@ import com.example.taskfoundation.ui.TaskLineScreen
 
 class MainActivity : ComponentActivity() {
     private val requestedTask = mutableStateOf<Long?>(null)
+    private val requestedLibrary = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,11 +32,13 @@ class MainActivity : ComponentActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
         }
         if (savedInstanceState == null) requestedTask.value = intent.getLongExtra("taskId", -1).takeIf { it > 0 }
+        if (savedInstanceState == null) requestedLibrary.value = intent.getBooleanExtra("openLibrary", false)
         val factory = AppViewModelFactory((application as TaskFoundationApplication).container)
         setContent {
             TaskLineTheme {
                 TaskLineScreen(viewModel(factory = factory), viewModel(factory = factory), viewModel(factory = factory),
-                    viewModel(factory = factory), requestedTask.value, { requestedTask.value = null })
+                    viewModel(factory = factory), requestedTask.value, { requestedTask.value = null }, libraryViewModel = viewModel(factory = factory),
+                    requestedLibrary = requestedLibrary.value, onLibraryOpened = { requestedLibrary.value = false })
             }
         }
     }
@@ -43,6 +46,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        requestedLibrary.value = intent.getBooleanExtra("openLibrary", false)
         requestedTask.value = intent.getLongExtra("taskId", -1).takeIf { it > 0 }
     }
 

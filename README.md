@@ -1,112 +1,105 @@
 # TaskLine
 
-An offline Android task and project planner built with Kotlin, Jetpack Compose, and Room. Requires Android 8.0 / API 26 or newer.
+**Plan your work. Build daily habits. Keep your data offline.**
 
-## Download and install
+TaskLine is a native Android task and project planner built with Kotlin, Jetpack Compose, and Room. It brings tasks, calendars, habits, notes, and focus sessions into an original iOS-inspired interface with light and dark themes.
 
-Get the APK and its SHA-256 checksum from [GitHub Releases](https://github.com/zack005-design/TaskLine/releases). Choose the **1 October 2026 development preview** for the latest verified build.
+**Android 8.0+ · Offline · Development preview**
 
-1. On an Android 8.0 or newer device, download `TaskLine-2026-10-01-planner-debug.apk` from the release assets.
-2. Open the APK and, if prompted, allow installation from the browser or file manager you used.
-3. Launch TaskLine and create your first task. Notification and calendar permissions are requested when their features need them.
+[Download APK](https://github.com/zack005-design/TaskLine/releases/tag/dev-2026-10-03) · [User guide](docs/USAGE.md) · [Verification](docs/VERIFICATION.md) · [Report an issue](https://github.com/zack005-design/TaskLine/issues)
 
-This is a **development-signed preview**, not a Play Store release. Before replacing an existing installation, export your tasks through **Tools → Backup & restore**. If Android reports an incompatible signing certificate, keep that backup before uninstalling; uninstalling removes local app data.
+## Preview
 
-To check the download on Windows:
+| Task board | Habits | Year planner · dark mode |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/board.png" alt="TaskLine status board with a task and status menu" width="250"> | <img src="docs/screenshots/habits.png" alt="TaskLine daily habit with check-in history" width="250"> | <img src="docs/screenshots/year-dark.png" alt="TaskLine year planner in dark mode" width="250"> |
 
-```powershell
-Get-FileHash ./TaskLine-2026-10-01-planner-debug.apk -Algorithm SHA256
-```
-
-Compare the result with the release's `.sha256` file.
-
-## Verified on 1 October 2026
-
-- 21 JVM unit tests and 31 Android instrumentation tests passed on an Android 16 / API 36 emulator.
-- Debug builds and Android lint passed: zero lint errors, 25 warnings.
-- Calendar inspected in light mode and dark mode at 150% text size.
-- Physical-device behavior, TalkBack and production signing remain unverified. See [verification details](VERIFICATION.md).
+Actual emulator captures from the verified build, using isolated test fixtures.
 
 ## Features
 
-- Apple-inspired grouped surfaces, rounded controls and home-screen widget, translucent floating navigation, light/dark themes, and large-text layouts. This is an Android interpretation, not Apple's native Liquid Glass renderer.
-- Tasks, projects, subtasks, tags, priorities, status, progress, search, and All / Today / Upcoming / Unscheduled / Overdue / Active / Completed filters. Upcoming shows tasks due in the next seven days; Unscheduled shows incomplete tasks with no date.
-- A **Calendar** tab with two modes: **Agenda** (month picker + ordered daily task list) and **Timeline** (bounded 14-day Gantt chart with Previous, Today, and Next navigation showing progress and project).
-- A **Stats** tab with active / overdue / done counts, a completion-streak banner, an animated 7-day bar chart, and per-project progress bars. Activity is estimated from completed tasks' last-update timestamp; reopened and repeating tasks are excluded.
-- A **Focus timer** that starts a 25-minute countdown from a task's detail sheet. The session state is persisted and restored across process death. A notification fires on completion when Android allows background work. The live countdown is visible in the top bar while a session runs.
-- A full-height task sheet with project/priority/status selection, collapsible scheduling, and inline subtasks saved atomically with the task.
-- Animated completion feedback, task progress, metrics, filters, and tab transitions. Swipe right to complete/reopen and left to request deletion; deletion still requires confirmation.
-- Optional project colors and five bundled original Lottie empty-state illustrations. Asset provenance is recorded in `app/EMPTY_STATE_ASSETS.md`.
-- A weekly local progress notification via WorkManager, skipped for empty weeks and when notifications are disabled. Counts use the same last-update estimate as Stats.
-- A confetti burst animation after a task completion succeeds.
-- Calendar dates that stay on the same day when time zones change, plus optional local due times.
-- Optional notifications at the due time or before it, with Complete and Snooze 10 min actions. Tapping a notification opens the relevant task.
-- Daily, weekly, monthly, and yearly recurring tasks with custom intervals. Completion advances to the next scheduled date, skips missed dates, and resets progress and subtasks. Month-end/leap-day anchors are retained. No occurrence history is recorded.
-- One-time import of calendars synced to Android (including Google Calendar), or an `.ics` file. Preview events, choose a project, select events, and confirm import. Re-importing the same source skips existing event keys.
-- Validated JSON backup/restore with record-count preview, explicit replacement confirmation, and transactional rollback on failure.
-- Retryable database loading errors and saved editor fields across activity recreation.
-- A rounded **TaskLine · Up next** home-screen widget showing up to three incomplete tasks from the same database.
+| Area | What you can do |
+| --- | --- |
+| Tasks & projects | Organize tasks with subtasks, tags, priorities, progress, project colors, search, and date/status filters. Switch between list, status board, and priority/deadline matrix. |
+| Planning | Use month/week calendars, agenda, a bounded 14-day timeline, and a year overview. Set due times, durations, fixed deadlines, recurrence, and local reminders. Review English smart-entry suggestions before applying them. |
+| Library | Track daily habits and streaks, write notes, create countdowns, reuse task-title templates, and save text/priority/status filters. |
+| Task context | Add local comments and file attachments; inspect activity recorded from this version onward. |
+| Focus & statistics | Run a persistent focus timer with selectable duration and pause/resume. View completion estimates, streaks, and project progress. |
+| Appearance & widgets | Choose six accent palettes and system/light/dark modes. Add Up next and Daily rituals home-screen widgets. |
+| Import & backup | Import phone calendars or `.ics` files once. Export and restore validated JSON backups including library records and attachments. |
 
-## Try it
+TaskLine has no Internet permission, cloud account, subscription, or synchronization service. Calendar access is read-only and requested when you choose phone-calendar import. See [feature scope and boundaries](docs/OFFLINE_FEATURES.md) for exact behavior.
 
-1. Create a project in **Projects**, then use **View tasks** to add tasks to it.
-2. In **New task** or **Edit**, expand **Schedule** and set a due date to reveal due time, reminder, and repeat controls. Enable notifications when prompted if you want reminders.
-3. Open **Calendar → Agenda** to pick a day and see its tasks in order. Switch to **Timeline** for the 14-day Gantt view of scheduled tasks.
-4. Open **Stats** to see active / overdue / done counts, your completion streak, the 7-day bar chart, and per-project progress.
-5. Open a task's detail sheet and tap **Focus** to start a 25-minute countdown. The live timer appears in the top bar; tap it to return to the session sheet.
-6. Open **Tools → Calendar import** to select a synced phone calendar or an `.ics` file. Google Calendar ZIP exports must be extracted first. Review the preview before importing.
-7. Open **Tools → Backup & restore** to export a file or inspect a backup. **Replace and restore** replaces current data; **Cancel** preserves it.
-8. Add **TaskLine · Up next** through your Android launcher's widget picker. Tap the widget to open TaskLine.
+## Install
 
-## Scheduling and calendar limits
+1. Open the [3 October 2026 development release](https://github.com/zack005-design/TaskLine/releases/tag/dev-2026-10-03).
+2. Download `TaskLine-2026-10-03-offline-debug.apk` and its `.sha256` checksum.
+3. Open the APK on Android 8.0 or newer. Allow installation from your browser or file manager if prompted.
 
-Reminders use Android inexact alarms and can be delayed by battery management. They follow the device's local time zone and require notifications to be enabled. Pending reminders are reconciled after data changes, app resume, reboot, clock/time-zone changes, and app updates. Force-stopping the app prevents Android from running its receivers until it is opened again. Physical-device/OEM background-delivery behavior is not yet verified.
+This APK is development-signed. Before upgrading, export a backup through **Tools → Backup & restore**. If Android reports an incompatible signing certificate, keep your backup before uninstalling; uninstalling removes local app data.
 
-Calendar import copies events into tasks; it is not ongoing synchronization and does not upload data. Imported tasks are due at the event start, with reminders initially off. Device calendar import relies on accounts/calendars already synced to the phone; TaskLine does not implement Google sign-in.
-
-The bounded `.ics` reader supports all-day events, UTC/IANA time zones, basic daily/weekly/monthly/yearly recurrence, counts/end dates, and exclusions. Unsupported recurrence rules, custom time zones, durations, and edited recurrence sets are reported as skipped. Use the synced phone-calendar route for provider-expanded complex recurrence. File import is limited to 10 MB, up to 5,000 events, and a preview window of at most one year.
-
-The widget requests periodic updates every 30 minutes; Android controls the actual update time. It also refreshes when tasks change while the process runs. Its three entries are ordered by due date, priority, and ID. It opens the app; inline widget task completion is not implemented.
-
-## Data and backup
-
-Room is the persistent source of truth. No Internet permission, cloud account, demo-data seeding, or synchronization service is included. Calendar access is read-only and requested when the user chooses phone-calendar import.
-
-Deleting a project detaches its tasks. Deleting a task cascades to its subtasks and tag links. Tag removal leaves tasks intact.
-
-Database version 3 has explicit migrations: 1→2 converts legacy local-midnight values to UTC-midnight calendar-date encoding; 2→3 adds scheduling and import fields. UTC-midnight date values must be decoded with `CalendarDates`, not converted as instants to the device's zone. Legacy records did not store their original time zone, so migration preserves the date visible in the device's zone at upgrade time. Destructive migration fallback is disabled.
-
-Backups include projects, tasks, subtasks, tags, relationships, reminder/repeat state, and import keys. The running focus session is local device state and is not included in JSON exports. Current exports use format version 2; canonical version 1 backups remain readable with default scheduling values. The app validates types, IDs, references, dates, completion state, and schedules before showing restore confirmation. A failed replacement transaction leaves existing data unchanged. Exports/imports are limited to 20 MB. Backups are readable JSON and are not encrypted by TaskLine.
-
-File operations run off the main thread. If Android kills the process before restore confirmation, choose the file again. An interrupted export may be incomplete; wait for **Backup saved** before relying on the file.
-
-## Build and verify
-
-Use Android Studio's bundled JBR (or a compatible JDK), SDK Platform 36, and the included Gradle wrapper. Configure the local SDK path in untracked `local.properties`.
+Verify the download on Windows:
 
 ```powershell
-$env:JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr'
+Get-FileHash ./TaskLine-2026-10-03-offline-debug.apk -Algorithm SHA256
+```
+
+Expected SHA-256:
+
+```text
+9B817788C716F44D712A75112A49694202061411B6EF9008CC1D7B099013D3E1
+```
+
+## Build
+
+Install Android Studio and SDK Platform 36. The included Gradle 9.6 wrapper uses the checked-in Java 25 daemon toolchain configuration; app bytecode targets Java 17. Configure your SDK using Android Studio or an untracked `local.properties` file.
+
+```powershell
 ./gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --max-workers=2
-# With an emulator or device connected:
+
+# With a connected emulator or Android device:
 ./gradlew.bat :app:connectedDebugAndroidTest --max-workers=2
 ```
 
-The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. It is a development build, not a signed store release. Application ID is `com.example.taskfoundation`, version name `1.0`, version code `1`.
+On macOS/Linux, use `./gradlew` with the same tasks. The debug APK is produced at `app/build/outputs/apk/debug/app-debug.apk`. Application ID: `com.example.taskfoundation`; development version: `1.0` (code `1`).
 
-The app explicitly aligns the serialization runtime with Room's migration-test dependency so the app and test APKs use a compatible ABI. See `VERIFICATION.md` for the final observed results and remaining verification limits.
+## Verification
 
-## Source organization
+The released offline build was verified on 3 October 2026:
 
-- `domain`: task models, calendar-date encoding, recurrence/reminder calculations, repository contracts, and stats (metrics, streak, daily counts).
-- `data`: Room schema/DAOs/migrations, repositories, validated portable backup format.
-- `calendar`: synced-calendar reader, bounded offline `.ics` reader, transactional duplicate-safe import.
-- `reminders`: Room-derived Android alarm/notification scheduling and recovery receivers.
-- `focus`: 25-minute focus-session state, persistence, WorkManager scheduling, and ViewModel.
-- `ui`: screen state, editors, calendar import, backup confirmation, stats screen, focus timer sheet, and reusable glass components (including `CompletionBurst` and `StreakBanner`).
-- `widget`: native RemoteViews provider using the same task repository.
+- **25 JVM tests** and **40 Android instrumentation tests** passed on an Android 16 / API 36 emulator.
+- **5 targeted tests** passed in dark mode at 150% text size.
+- Debug app/test builds and lint passed with **zero lint errors and 31 warnings**.
+- The release APK checksum matches the tested app build.
 
-`DESIGN.md` documents the visual system and references. Android Studio component previews include light, dark, and 150% text. Generated builds, local paths, signing material, and APKs are excluded from Git.
+Physical-device behavior, TalkBack, production signing, and store distribution remain unverified. Background delivery and widget refresh timing depend on Android. Completion charts estimate dates from task updates. See the [full verification record](docs/VERIFICATION.md).
 
-## Remaining product work
+## Repository layout
 
-Production signing/branding and store preparation; physical-device and TalkBack audits; full calendar synchronization; inline widget completion; task dependencies, templates, and completion history.
+```text
+TaskLine/
+├── app/
+│   ├── schemas/               Versioned Room migration schemas
+│   └── src/
+│       ├── main/              Kotlin source, manifest, and Android resources
+│       ├── test/              JVM unit tests
+│       └── androidTest/       Database, UI, and widget instrumentation tests
+├── docs/
+│   ├── screenshots/           Selected verified app captures
+│   ├── DESIGN.md              Visual system and component conventions
+│   ├── OFFLINE_FEATURES.md    Feature scope and remaining differences
+│   ├── USAGE.md               Tasks, planning, import, and backup guide
+│   └── VERIFICATION.md        Results, evidence, and known limits
+├── gradle/                    Wrapper and daemon toolchain configuration
+├── build.gradle.kts          Shared plugin versions
+├── settings.gradle.kts       Repository and module configuration
+└── README.md
+```
+
+Within `app/src/main/java/com/example/taskfoundation/`, `domain` holds task models and scheduling rules; `data` owns Room persistence and portable backups; `calendar`, `reminders`, and `focus` own their platform behavior; `ui` contains Compose screens and ViewModels; `widget` contains native RemoteViews providers. Bundled animation provenance is recorded in [app/EMPTY_STATE_ASSETS.md](app/EMPTY_STATE_ASSETS.md).
+
+APKs and checksums are distributed as release assets. Generated builds, caches, local configuration, signing material, and workspace recovery files are excluded from Git.
+
+## Contributing
+
+Open an [issue](https://github.com/zack005-design/TaskLine/issues) with reproduction steps or a proposed change. Preserve offline behavior and non-destructive migrations. Include relevant unit/device verification with a pull request and keep lint free of errors. Review the [design conventions](docs/DESIGN.md) before changing presentation.

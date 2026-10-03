@@ -1,6 +1,8 @@
 <resources>
-    <color name="widget_glass_top">#EF30384D</color>
-    <color name="widget_glass_bottom">#E51D2235</color>
+    <color name="widget_accent">#A8B5FF</color>
+    <color name="widget_row">#FF272931</color>
+    <color name="widget_glass_top">#FF1C1D23</color>
+    <color name="widget_glass_bottom">#FF15161B</color>
     <color name="widget_glass_edge">#668D9AB8</color>
     <color name="widget_text">#F1F3FA</color>
     <color name="widget_secondary">#C2CCE2</color>

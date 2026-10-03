@@ -16,8 +16,10 @@ class FocusStore(context: Context, preferencesName: String = "focus-session") {
         val id = prefs.getString("session", null) ?: return@synchronized FocusState()
         val total = prefs.getInt("total", 1500)
         val end = prefs.getLong("end", 0)
+        val paused = prefs.getInt("paused", -1)
         FocusState(prefs.getBoolean("active", false), prefs.getLong("task", 0),
-            prefs.getString("title", "") ?: "", remainingSeconds(end, now, total), total, id, end)
+            prefs.getString("title", "") ?: "", if (paused >= 0) paused else remainingSeconds(end, now, total), total, id, end,
+            isPaused = paused >= 0)
     }
 
     fun start(task: Task, minutes: Int): FocusState = synchronized(lock) {
@@ -26,7 +28,7 @@ class FocusStore(context: Context, preferencesName: String = "focus-session") {
         val total = minutes * 60
         check(prefs.edit().putString("session", id).putLong("task", task.id).putString("title", task.title)
             .putInt("total", total).putLong("end", System.currentTimeMillis() + total * 1000L)
-            .putBoolean("active", true).commit()) { "Could not save the focus session" }
+            .putBoolean("active", true).remove("paused").commit()) { "Could not save the focus session" }
         read()
     }
 
@@ -52,6 +54,21 @@ class FocusStore(context: Context, preferencesName: String = "focus-session") {
         check(prefs.edit().clear().commit()) { "Could not stop the focus session" }
         context.getSystemService(android.app.NotificationManager::class.java).cancel("focus", 1)
         WorkManager.getInstance(context).cancelUniqueWork(WORK)
+    }
+
+    fun pause(): FocusState = synchronized(lock) {
+        val state = read()
+        if (!state.isActive || state.remainingSeconds == 0) return@synchronized state
+        check(prefs.edit().putBoolean("active", false).putInt("paused", state.remainingSeconds).commit()) { "Could not pause focus" }
+        read()
+    }
+
+    fun resume(): FocusState = synchronized(lock) {
+        val state = read()
+        if (!state.isPaused) return@synchronized state
+        check(prefs.edit().putBoolean("active", true).remove("paused")
+            .putLong("end", System.currentTimeMillis() + state.remainingSeconds * 1000L).commit()) { "Could not resume focus" }
+        read()
     }
 
     companion object {

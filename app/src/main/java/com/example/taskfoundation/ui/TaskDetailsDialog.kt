@@ -16,21 +16,29 @@ import com.example.taskfoundation.domain.model.Task
 import com.example.taskfoundation.ui.tasks.TasksViewModel
 
 @Composable
-fun TaskDetailsDialog(task: Task, viewModel: TasksViewModel, onStartFocus: ((Task) -> Unit)? = null, onDismiss: () -> Unit) {
+fun TaskDetailsDialog(task: Task, viewModel: TasksViewModel, onStartFocus: ((Task, Int) -> Unit)? = null,
+    libraryViewModel: LibraryViewModel? = null, onDismiss: () -> Unit) {
     val state by viewModel.detailsState.collectAsStateWithLifecycle()
     val tasks by viewModel.uiState.collectAsStateWithLifecycle()
     var title by rememberSaveable(task.id) { mutableStateOf("") }
     var tag by rememberSaveable(task.id) { mutableStateOf("") }
+    var comment by rememberSaveable(task.id) { mutableStateOf("") }
+    var focusMinutes by rememberSaveable(task.id) { mutableIntStateOf(25) }
+    val library = libraryViewModel?.state?.collectAsStateWithLifecycle()?.value
     var editingId by rememberSaveable(task.id) { mutableStateOf<Long?>(null) }
     var deletingId by rememberSaveable(task.id) { mutableStateOf<Long?>(null) }
     LaunchedEffect(task.id) { viewModel.selectDetails(task.id) }
     DisposableEffect(task.id) { onDispose { viewModel.selectDetails(null) } }
     val busy = tasks.isSaving
-    AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text(task.title) },
-        text = {
+    TaskLineSheet(
+        onDismiss = { if (!busy) onDismiss() },
+        title = task.title,
+        busy = busy,
+        content = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (task.description.isNotBlank()) Text(task.description)
+                task.durationMinutes?.let { Text("Planned duration · $it minutes", color = MaterialTheme.colorScheme.primary) }
+                task.deadline?.let { Text("Deadline · ${com.example.taskfoundation.domain.time.CalendarDates.decode(it)}") }
                 if (tasks.errorMessage != null) {
                     Text(tasks.errorMessage!!, color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = viewModel::clearError) { Text("Dismiss error") }
@@ -60,7 +68,7 @@ fun TaskDetailsDialog(task: Task, viewModel: TasksViewModel, onStartFocus: ((Tas
                             }
                         }
                     }
-                    OutlinedTextField(title, { title = it }, enabled = !busy, label = { Text("Subtask title") }, modifier = Modifier.fillMaxWidth())
+                    TaskLineTextField(title, { title = it }, enabled = !busy, label = { Text("Subtask title") }, modifier = Modifier.fillMaxWidth())
                     TextButton(enabled = !busy && title.isNotBlank(), onClick = {
                         val original = state.subtasks.find { it.id == editingId }
                         val subtask = original ?: Subtask(taskId = task.id, title = title,
@@ -78,15 +86,31 @@ fun TaskDetailsDialog(task: Task, viewModel: TasksViewModel, onStartFocus: ((Tas
                                 modifier = Modifier.semantics { contentDescription = "Remove tag ${item.name}" }) { Text("Remove") }
                         }
                     }
-                    OutlinedTextField(tag, { tag = it }, enabled = !busy, label = { Text("Tag name") }, modifier = Modifier.fillMaxWidth())
+                    TaskLineTextField(tag, { tag = it }, enabled = !busy, label = { Text("Tag name") }, modifier = Modifier.fillMaxWidth())
                     TextButton(enabled = !busy && tag.isNotBlank(), onClick = {
                         viewModel.attachTag(task.id, tag) { tag = "" }
                     }) { Text("Add tag") }
+                    if (onStartFocus != null && !task.isCompleted) Choice("Focus length", "$focusMinutes minutes", listOf(5, 15, 25, 45, 60, 90),
+                        !busy, label = { "$it minutes" }) { focusMinutes = it }
+                    if (libraryViewModel != null && library != null) TaskAttachments(task.id, library, libraryViewModel)
+                    if (libraryViewModel != null && library != null) CollapsibleSection("Comments", "Private to this device") {
+                        library.items.filter { it.kind == "Comment" && it.id.startsWith("${task.id}:") }.forEach { item ->
+                            Text(org.json.JSONObject(item.payload).getString("text"))
+                            Text(java.time.Instant.ofEpochMilli(item.createdAt).atZone(java.time.ZoneId.systemDefault())
+                                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm")), style = MaterialTheme.typography.labelSmall)
+                            TextButton(enabled = !library.busy, onClick = { libraryViewModel.delete(item.id) }) { Text("Remove comment") }
+                        }
+                        TaskLineTextField(comment, { comment = it }, enabled = !library.busy, label = { Text("Write a comment") })
+                        library.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        TextButton(enabled = !library.busy && comment.isNotBlank(), onClick = {
+                            libraryViewModel.comment(task.id, comment) { comment = "" }
+                        }) { Text("Add comment") }
+                    }
                 }
             }
         },
-        confirmButton = { FlowRow {
-            if (onStartFocus != null && !task.isCompleted) FilledTonalButton(enabled = !busy, onClick = { onStartFocus(task) }) { Text("Focus") }
+        footer = { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            if (onStartFocus != null && !task.isCompleted) TaskLinePrimaryButton("Focus", enabled = !busy, onClick = { onStartFocus(task, focusMinutes) })
             TextButton(enabled = !busy, onClick = onDismiss) { Text("Close") }
         } },
     )

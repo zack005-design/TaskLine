@@ -17,6 +17,23 @@ import com.example.taskfoundation.domain.time.TaskSchedule
 
 @Dao
 interface TaskDao {
+    @Insert suspend fun insertLibrary(item: com.example.taskfoundation.data.local.entity.LibraryItem)
+
+    suspend fun recordActivity(taskId: Long, title: String, action: String, now: Long) {
+        insertLibrary(com.example.taskfoundation.data.local.entity.LibraryItem(java.util.UUID.randomUUID().toString(),
+            "Activity", title, org.json.JSONObject().put("taskId", taskId).put("action", action).toString(), now, now))
+    }
+
+    @Query("DELETE FROM library_items WHERE kind IN ('Comment', 'Attachment') AND id LIKE :prefix")
+    suspend fun deleteComments(prefix: String)
+
+    @Transaction suspend fun deleteWithHistory(id: Long, now: Long): Int {
+        val task = get(id) ?: return 0
+        val count = deleteById(id)
+        deleteComments("$id:%")
+        recordActivity(id, task.title, "Deleted", now)
+        return count
+    }
     @Query("SELECT * FROM tasks WHERE id = :id")
     suspend fun get(id: Long): TaskEntity?
 
@@ -76,7 +93,14 @@ interface TaskDao {
             if (old != null) resetSubtasks(old.id, now)
         }
         val id = upsert(current)
-        return if (task.id == 0L) id else task.id
+        val savedId = if (task.id == 0L) id else task.id
+        recordActivity(savedId, task.title, when {
+            task.isCompleted && old?.isCompleted != true -> "Completed"
+            old == null -> "Created"
+            !task.isCompleted && old.isCompleted -> "Reopened"
+            else -> "Updated"
+        }, now)
+        return savedId
     }
 
     @Transaction
@@ -86,6 +110,7 @@ interface TaskDao {
             upsert(TaskSchedule.next(task.toDomain(), now).toEntity())
             resetSubtasks(id, now)
         } else setCompleted(id, completed, now)
+        if (task.isCompleted != completed) recordActivity(id, task.title, if (completed) "Completed" else "Reopened", now)
         return true
     }
     @Query(

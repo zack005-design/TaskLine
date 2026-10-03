@@ -66,4 +66,18 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
             catch (error: Exception) { mutableState.update { it.copy(error = "Unable to stop focus. Please retry.") } }
         }
     }
+    fun togglePause() {
+        timer?.cancel()
+        timer = viewModelScope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { if (store.read().isPaused) store.resume() else store.pause() }
+                mutableState.value = saved
+                if (saved.isActive) {
+                    withContext(Dispatchers.IO) { store.schedule(saved)?.result?.get() }
+                    tick()
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { mutableState.update { it.copy(error = "Could not change focus timer. Try again.") } }
+        }
+    }
 }

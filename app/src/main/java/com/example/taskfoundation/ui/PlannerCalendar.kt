@@ -47,9 +47,9 @@ internal fun PlannerCalendar(tasks: List<Task>, selectedDay: LocalDate, onSelect
                 }, modifier = Modifier.semantics { contentDescription = "Next calendar period" }) { Text("›", style = MaterialTheme.typography.headlineMedium) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                FilterChip(!weekOnly, { weekOnly = false; monthText = YearMonth.from(selectedDay).toString() }, label = { Text("Month") })
-                FilterChip(weekOnly, { weekOnly = true; monthText = YearMonth.from(selectedDay).toString() }, label = { Text("Week") })
-                Spacer(Modifier.weight(1f))
+                TaskLineSegments(listOf("Month", "Week"), if (weekOnly) "Week" else "Month", {
+                    weekOnly = it == "Week"; monthText = YearMonth.from(selectedDay).toString()
+                }, Modifier.weight(1f))
                 TextButton(onClick = { onSelect(LocalDate.now()); monthText = YearMonth.now().toString() }) { Text("Today") }
             }
             Row(Modifier.fillMaxWidth()) {

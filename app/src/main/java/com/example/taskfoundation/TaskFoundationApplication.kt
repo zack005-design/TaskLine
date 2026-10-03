@@ -12,6 +12,17 @@ class TaskFoundationApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch {
+            container.database.libraryDao().observe().retryWhen { cause, _ ->
+                Log.e("LibraryWidget", "Library observation failed", cause)
+                com.example.taskfoundation.widget.LibraryWidget.showError(this@TaskFoundationApplication)
+                delay(5000); true
+            }.collect {
+                try { com.example.taskfoundation.widget.LibraryWidget.refresh(this@TaskFoundationApplication) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { Log.e("LibraryWidget", "Refresh failed", e); com.example.taskfoundation.widget.LibraryWidget.showError(this@TaskFoundationApplication) }
+            }
+        }
+        applicationScope.launch {
             try { com.example.taskfoundation.reminders.SmartNudge.schedule(this@TaskFoundationApplication).result.get() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) { Log.e("TaskLineNudge", "Unable to schedule weekly progress", error) }

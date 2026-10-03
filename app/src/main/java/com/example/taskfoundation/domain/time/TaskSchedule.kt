@@ -6,6 +6,8 @@ import java.time.temporal.ChronoUnit
 
 object TaskSchedule {
     fun validate(task: Task) {
+        require(task.durationMinutes == null || task.durationMinutes in 1..10080) { "Duration must be 1–10080 minutes" }
+        require(task.deadline == null || CalendarDates.isValid(task.deadline)) { "Invalid deadline" }
         require(task.dueTimeMinutes == null || task.dueTimeMinutes in 0..1439) { "Choose a valid due time" }
         require(task.reminderMinutes == null || task.reminderMinutes in 0..10080) { "Invalid reminder offset" }
         require(task.dueDateTime != null || (task.dueTimeMinutes == null && task.reminderMinutes == null && task.repeatRule == RepeatRule.NONE)) { "Choose a due date for a time, reminder, or repeat" }

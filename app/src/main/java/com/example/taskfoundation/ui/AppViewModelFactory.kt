@@ -12,6 +12,7 @@ class AppViewModelFactory(
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
+        modelClass.isAssignableFrom(LibraryViewModel::class.java) -> LibraryViewModel(container.database, container.taskRepository) as T
         modelClass.isAssignableFrom(DataToolsViewModel::class.java) ->
             DataToolsViewModel(container.context.applicationContext,
                 com.example.taskfoundation.calendar.CalendarImport(container.context.applicationContext, container.database)) as T

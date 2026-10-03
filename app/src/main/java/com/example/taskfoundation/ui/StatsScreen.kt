@@ -19,6 +19,19 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun StatsScreen(tasks: List<Task>, projects: List<Project>) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        val completed = tasks.count { it.isCompleted }
+        GlassCard(Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(20.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                ProgressRing(if (tasks.isEmpty()) 0f else completed.toFloat() / tasks.size,
+                    "$completed of ${tasks.size} tasks complete", Modifier.size(76.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Small steps. Real progress.", style = MaterialTheme.typography.titleLarge)
+                    Text("$completed tasks completed", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
         GlassCard(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Metric("Active", TaskStats.totalActive(tasks), Modifier.weight(1f))
@@ -37,7 +50,7 @@ fun StatsScreen(tasks: List<Task>, projects: List<Project>) {
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Text("Project progress", style = MaterialTheme.typography.titleLarge)
+        TaskLineSection("Project progress")
         if (projects.isEmpty()) Text("Create a project to track its progress here.")
         projects.forEach { project ->
             val items = tasks.filter { it.projectId == project.id }
@@ -59,7 +72,7 @@ fun WeekBarChart(data: List<DailyCount>) {
     if (data.isEmpty()) return
     val max = data.maxOf { it.completed }.coerceAtLeast(1)
     val color = MaterialTheme.colorScheme.primary
-    val track = MaterialTheme.colorScheme.surfaceVariant
+    val track = MaterialTheme.colorScheme.surfaceContainer
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
     val amount by animateFloatAsState(if (entered) 1f else 0f, tween(600), label = "weekBars")
@@ -70,9 +83,9 @@ fun WeekBarChart(data: List<DailyCount>) {
             }, horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                 Text(day.completed.toString(), style = MaterialTheme.typography.labelSmall)
                 Canvas(Modifier.fillMaxWidth().height(120.dp).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                    drawRoundRect(track, cornerRadius = CornerRadius(4.dp.toPx()))
+                    drawRoundRect(track, cornerRadius = CornerRadius(8.dp.toPx()))
                     val h = size.height * day.completed.toFloat() / max * amount
-                    if (h > 0) drawRoundRect(color, Offset(0f, size.height - h), Size(size.width, h), CornerRadius(4.dp.toPx()))
+                    if (h > 0) drawRoundRect(color, Offset(0f, size.height - h), Size(size.width, h), CornerRadius(8.dp.toPx()))
                 }
                 Text(day.date.format(DateTimeFormatter.ofPattern("EEEEE")), style = MaterialTheme.typography.labelSmall)
             }

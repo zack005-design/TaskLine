@@ -2,8 +2,8 @@ package com.example.taskfoundation.ui
 
 import androidx.compose.animation.core.*
 import com.airbnb.lottie.compose.*
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -41,6 +41,8 @@ fun NavigationGlyph(kind: Int) {
                 drawLine(ink, Offset(10*u,15*u), Offset(17*u,8*u), 2*u) }
             1 -> { drawRoundRect(ink, Offset(2*u,6*u), Size(20*u,15*u), androidx.compose.ui.geometry.CornerRadius(3*u), style = Stroke(1.8f*u))
                 drawLine(ink, Offset(4*u,3*u), Offset(11*u,3*u), 2*u) }
+            5 -> { for (i in 0..2) drawCircle(ink, 1.6f*u, Offset((5+i*7)*u, 12*u)) }
+            6 -> { drawCircle(ink, 6.5f*u, Offset(10*u,10*u), style = Stroke(1.8f*u)); drawLine(ink, Offset(15*u,15*u), Offset(21*u,21*u), 1.8f*u) }
             4 -> {
                 for (i in 0..2) drawRoundRect(ink, Offset((4 + i * 6)*u, (14 - i * 5)*u),
                     Size(4*u, (7 + i * 5)*u), androidx.compose.ui.geometry.CornerRadius(u))
@@ -89,15 +91,11 @@ fun TaskCard(task: Task, project: String, dates: String, busy: Boolean,
     }) {
     Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLowest) {
-        Box(Modifier.drawWithContent {
-            drawContent()
-            val x = if (layoutDirection == androidx.compose.ui.unit.LayoutDirection.Ltr) 0f else size.width - 4.dp.toPx()
-            drawRect(accent, Offset(x, 0f), Size(4.dp.toPx(), size.height))
-        }) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Column(Modifier.padding(horizontal = 6.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val ring = MaterialTheme.colorScheme.primary
-                val muted = MaterialTheme.colorScheme.outline
+                val muted = accent
+                val check = MaterialTheme.colorScheme.onPrimary
                 Box(Modifier.size(48.dp).clip(CircleShape)
                     .toggleable(task.isCompleted, enabled = !busy, role = Role.Checkbox, onValueChange = onComplete)
                     .semantics { contentDescription = "Complete ${task.title}" }, contentAlignment = Alignment.Center) {
@@ -105,41 +103,47 @@ fun TaskCard(task: Task, project: String, dates: String, busy: Boolean,
                         drawCircle(if (task.isCompleted) ring else muted, style = Stroke(1.5.dp.toPx()))
                         if (task.isCompleted) {
                             drawCircle(ring)
-                            drawLine(Color.White, Offset(size.width*.25f, size.height*.5f), Offset(size.width*.43f, size.height*.68f), 2.dp.toPx())
-                            drawLine(Color.White, Offset(size.width*.43f, size.height*.68f), Offset(size.width*.76f, size.height*.32f), 2.dp.toPx())
+                            drawLine(check, Offset(size.width*.25f, size.height*.5f), Offset(size.width*.43f, size.height*.68f), 2.dp.toPx())
+                            drawLine(check, Offset(size.width*.43f, size.height*.68f), Offset(size.width*.76f, size.height*.32f), 2.dp.toPx())
                         }
                     }
                 }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(task.title, style = MaterialTheme.typography.titleMedium, color = LocalContentColor.current.copy(alpha = titleAlpha),
+                Column(Modifier.weight(1f).clickable(enabled = !busy, onClick = onDetails)
+                    .semantics { contentDescription = "Details ${task.title}" }.padding(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(task.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = LocalContentColor.current.copy(alpha = titleAlpha),
                         textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null)
-                    Text("$project · $dates", style = MaterialTheme.typography.bodySmall,
+                    Text(if (dates == "No dates") project else "$project · $dates", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (task.description.isNotBlank()) Text(task.description, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (task.priority == TaskPriority.HIGH || task.priority == TaskPriority.URGENT)
+                            MetadataPill(task.priority.name.lowercase().replaceFirstChar { it.uppercase() }, accent)
+                        if (task.status == TaskStatus.BLOCKED || task.status == TaskStatus.IN_PROGRESS)
+                            MetadataPill(task.status.name.lowercase().replace('_', ' '), MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (task.progress in 1..99) Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LinearProgressIndicator(progress = { animatedProgress }, modifier = Modifier.weight(1f).height(3.dp), drawStopIndicator = {})
+                        Text("${task.progress}%", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                var menu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menu = true }, enabled = !busy,
+                        modifier = Modifier.semantics { contentDescription = "Actions ${task.title}" }) { NavigationGlyph(5) }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text("Details") }, onClick = { menu = false; onDetails() })
+                        DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() },
+                            modifier = Modifier.semantics { contentDescription = "Edit ${task.title}" })
+                        DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete() },
+                            modifier = Modifier.semantics { contentDescription = "Delete ${task.title}" })
+                    }
                 }
             }
-            if (task.description.isNotBlank()) Text(task.description, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 48.dp, top = 4.dp),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FlowRow(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (task.priority == TaskPriority.HIGH || task.priority == TaskPriority.URGENT)
-                    MetadataPill(task.priority.name.lowercase().replaceFirstChar { it.uppercase() }, accent)
-                if (task.status == TaskStatus.BLOCKED || task.status == TaskStatus.IN_PROGRESS)
-                    MetadataPill(task.status.name.lowercase().replace('_', ' '), MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LinearProgressIndicator(progress = { animatedProgress }, modifier = Modifier.weight(1f))
-                Text("${task.progress}%", style = MaterialTheme.typography.labelSmall)
-            }
-            FlowRow {
-                TextButton(onDetails, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Details ${task.title}" }) { Text("Details") }
-                TextButton(onEdit, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Edit ${task.title}" }) { Text("Edit") }
-                TextButton(onDelete, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Delete ${task.title}" },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete") }
-            }
         }
-    }
     }
     }
 }
@@ -182,10 +186,10 @@ fun EmptyPanel(title: String, message: String, kind: Int = 0, lottieRes: Int? = 
 @Composable
 fun AppleTab(title: String, kind: Int, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val ink = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Column(modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
+    Column(modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
         .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = .10f) else Color.Transparent)
         .selectable(selected, onClick = onClick, role = Role.Tab)
-        .heightIn(min = 64.dp).padding(horizontal = 2.dp, vertical = 9.dp),
+        .heightIn(min = 56.dp).padding(horizontal = 2.dp, vertical = 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
         CompositionLocalProvider(LocalContentColor provides ink) { NavigationGlyph(kind) }
         Text(title, style = MaterialTheme.typography.labelSmall, color = ink, fontWeight = FontWeight.SemiBold,
@@ -196,11 +200,11 @@ fun AppleTab(title: String, kind: Int, selected: Boolean, onClick: () -> Unit, m
 @Composable
 fun AppleFilter(title: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     Box(Modifier.clip(CircleShape)
-        .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+        .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
         .selectable(selected, enabled = enabled, onClick = onClick, role = Role.RadioButton)
         .heightIn(min = 48.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
         Text(title, style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -222,8 +226,8 @@ fun TaskLineTextField(value: String, onValueChange: (String) -> Unit, label: @Co
 
 @Composable
 internal fun priorityColor(priority: TaskPriority): Color = when (priority) {
-    TaskPriority.LOW -> Color(0xFF4CAF50)
+    TaskPriority.LOW -> if (isSystemInDarkTheme()) Color(0xFF78D7BF) else Color(0xFF298575)
     TaskPriority.MEDIUM -> MaterialTheme.colorScheme.primary
-    TaskPriority.HIGH -> Color(0xFFFF9800)
+    TaskPriority.HIGH -> if (isSystemInDarkTheme()) Color(0xFFFFBF70) else Color(0xFFAD6200)
     TaskPriority.URGENT -> MaterialTheme.colorScheme.error
 }

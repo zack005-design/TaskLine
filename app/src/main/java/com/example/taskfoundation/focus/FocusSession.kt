@@ -9,6 +9,7 @@ data class FocusState(
     val sessionId: String? = null,
     val endsAt: Long = 0,
     val error: String? = null,
+    val isPaused: Boolean = false,
 )
 
 /** Derive remaining time from a deadline rather than counting delayed coroutine ticks. */

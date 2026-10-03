@@ -29,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -54,11 +55,13 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsViewModel,
     backupViewModel: BackupViewModel? = null, dataToolsViewModel: DataToolsViewModel? = null,
-    requestedTaskId: Long? = null, onRequestedTaskOpened: () -> Unit = {}) {
+    requestedTaskId: Long? = null, onRequestedTaskOpened: () -> Unit = {}, libraryViewModel: LibraryViewModel? = null,
+    requestedLibrary: Boolean = false, onLibraryOpened: () -> Unit = {}) {
     val tasks by tasksViewModel.uiState.collectAsStateWithLifecycle()
     val projects by projectsViewModel.uiState.collectAsStateWithLifecycle()
     val focusViewModel: FocusViewModel = viewModel()
     val focusState by focusViewModel.state.collectAsStateWithLifecycle()
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     var showFocus by rememberSaveable { mutableStateOf(false) }
     var celebration by remember { mutableIntStateOf(0) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -66,7 +69,9 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
     var selectedDay by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
     var editorDate by rememberSaveable { mutableStateOf<Long?>(null) }
     var quickTitle by rememberSaveable { mutableStateOf("") }
+    var quickEntryFocused by remember { mutableStateOf(false) }
     var calendarMode by rememberSaveable { mutableStateOf("Agenda") }
+    var taskLayout by rememberSaveable { mutableStateOf("List") }
     var search by rememberSaveable { mutableStateOf("") }
     var projectFilter by rememberSaveable { mutableStateOf<Long?>(null) }
     // Null means closed, zero means new, and a positive ID means edit.
@@ -78,11 +83,24 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
     var showBackup by rememberSaveable { mutableStateOf(false) }
     var showCalendar by rememberSaveable { mutableStateOf(false) }
     var showTools by remember { mutableStateOf(false) }
+    var showAppearance by rememberSaveable { mutableStateOf(false) }
+    if (showAppearance) AppearanceSheet { showAppearance = false }
+    var showLibrary by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(requestedLibrary) { if (requestedLibrary) { showLibrary = true; onLibraryOpened() } }
+    var savedPriority by rememberSaveable { mutableStateOf("Any") }
+    var savedStatus by rememberSaveable { mutableStateOf("Any") }
     var entryMessage by remember { mutableStateOf<String?>(null) }
     val backupState = backupViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     val busy = tasks.isSaving || projects.isSaving || backupState?.busy == true
+    if (showLibrary && libraryViewModel != null) LibraryScreen(libraryViewModel, projects.projects,
+        onFilter = { item ->
+            val data = org.json.JSONObject(item.payload)
+            search = data.getString("query"); savedPriority = data.getString("priority"); savedStatus = data.getString("status")
+            projectFilter = null; filter = "All"; tab = 0
+        }, onDismiss = { showLibrary = false })
     LaunchedEffect(backupState?.restoreRevision) {
         if ((backupState?.restoreRevision ?: 0) > 0) {
+            savedPriority = "Any"; savedStatus = "Any"
             projectFilter = null
             filter = "All"
             search = ""
@@ -144,16 +162,19 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
             // Liquid Glass scroll-edge effect: transparent at list top, frosted glass on scroll.
             // Mirrors Apple's "Optimize for legibility when content scrolls beneath controls."
             TopAppBar(title = {
-                Text(if (scrolled) when (tab) { 0 -> "Your tasks"; 1 -> "Your projects"; 3 -> "Your stats"; else -> "Your calendar" } else "TaskLine",
+                Text(if (scrolled) when (tab) { 0 -> if (filter == "Today") "Daily plan" else "My tasks"; 1 -> "Your projects"; 3 -> "Your stats"; else -> "Your calendar" } else "TaskLine",
                     style = MaterialTheme.typography.titleMedium)
             }, actions = {
-                if (focusState.taskId != null) TextButton(onClick = { showFocus = true }) {
-                    Text(if (focusState.isActive) "Focus ${focusState.remainingSeconds / 60}:${(focusState.remainingSeconds % 60).toString().padStart(2, '0')}" else "Focus done")
+                if (libraryViewModel != null) TextButton(onClick = { showLibrary = true }, enabled = !busy) { Text("Library") }
+                if (focusState.taskId != null) TextButton(onClick = { showFocus = true },
+                    modifier = Modifier.semantics { contentDescription = "Open focus timer" }) {
+                    Text(if (focusState.isPaused) "Focus paused" else if (focusState.isActive) "Focus ${focusState.remainingSeconds / 60}:${(focusState.remainingSeconds % 60).toString().padStart(2, '0')}" else "Focus done")
                 }
                 if (backupViewModel != null) {
                     Box {
                         TextButton(enabled = !busy, onClick = { showTools = true }) { Text("Tools") }
                         DropdownMenu(expanded = showTools, onDismissRequest = { showTools = false }) {
+                            DropdownMenuItem(text = { Text("Appearance") }, onClick = { showTools = false; showAppearance = true })
                             if (dataToolsViewModel != null) DropdownMenuItem(text = { Text("Calendar import") },
                                 onClick = { showTools = false; showCalendar = true })
                             DropdownMenuItem(text = { Text("Backup & restore") },
@@ -164,15 +185,15 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
                     Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, d MMM")),
                         Modifier.padding(end = 16.dp), style = MaterialTheme.typography.labelMedium)
                 }
-            }, colors = TopAppBarDefaults.topAppBarColors(
+            }, expandedHeight = 48.dp, colors = TopAppBarDefaults.topAppBarColors(
                 // Animated glass: clear at top, frosted when scrolled
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = topBarAlpha),
                 scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.90f),
             ))
         },
         bottomBar = {
-            GlassPill(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .97f), shadowElevation = 1.dp) {
+                Row(Modifier.navigationBarsPadding().fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppleTab("Tasks", 0, tab == 0, { tab = 0 }, Modifier.weight(1f).fillMaxHeight())
                     AppleTab("Calendar", 3, tab == 2, { tab = 2 }, Modifier.weight(1f).fillMaxHeight())
                     AppleTab("Projects", 1, tab == 1, { tab = 1 }, Modifier.weight(1f).fillMaxHeight())
@@ -181,8 +202,9 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
             }
         },
         floatingActionButton = {
+            if (tab != 0 || !quickEntryFocused)
             ExtendedFloatingActionButton(
-                shape = androidx.compose.foundation.shape.CircleShape,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 text = { Text(if (tab == 1) "New project" else "New task") },
@@ -204,11 +226,11 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
         LazyColumn(
             state = listStates[currentTab],
             modifier = Modifier.fillMaxSize().padding(padding).testTag("taskline_content"),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                Text(when (currentTab) { 0 -> "Your tasks"; 1 -> "Your projects"; 3 -> "Your stats"; else -> "Your calendar" }, style = MaterialTheme.typography.headlineLarge)
+                Text(when (currentTab) { 0 -> if (filter == "Today") "Daily plan" else "My tasks"; 1 -> "Your projects"; 3 -> "Your stats"; else -> "Your calendar" }, style = MaterialTheme.typography.headlineLarge)
                 Text(when (currentTab) { 0 -> LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM")); 1 -> "Big ideas, one step at a time."; 3 -> "Your progress, one day at a time."; else -> "Your tasks and your time, together." },
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -235,21 +257,14 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
             } else if (tasks.loadFailed || projects.loadFailed) {
                 item { Text("Your data could not be loaded. Retry to see your tasks and projects.") }
             } else if (currentTab == 0) {
-                item { OverviewCard(tasks.tasks) }
+                item { TaskLineSegments(listOf("List", "Board", "Matrix"), taskLayout, { taskLayout = it }, Modifier.fillMaxWidth()) }
+                item { OverviewCard(tasks.tasks) { focusManager.clearFocus(); filter = it; projectFilter = null; search = ""; savedPriority = "Any"; savedStatus = "Any" } }
                 item {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TaskLineTextField(quickTitle, { quickTitle = it }, singleLine = true,
-                            enabled = !busy, label = { Text("Add a task") }, modifier = Modifier.weight(1f))
-                        FilledTonalButton(enabled = quickTitle.isNotBlank() && !busy, onClick = {
-                            tasksViewModel.saveTask(Task(title = quickTitle.trim(), projectId = projectFilter,
-                                dueDateTime = if (filter == "Today") CalendarDates.encode(LocalDate.now()) else null,
-                                createdAt = 0, updatedAt = 0)) { quickTitle = "" }
-                        }) { Text("Add") }
+                    if (savedPriority != "Any" || savedStatus != "Any") TextButton(onClick = { savedPriority = "Any"; savedStatus = "Any" }) {
+                        Text("${savedPriority.lowercase()} · ${savedStatus.lowercase()} × Clear")
                     }
-                }
-                item {
                     TextField(value = search, onValueChange = { search = it },
+                        leadingIcon = { NavigationGlyph(6) },
                         placeholder = { Text("Search tasks") }, singleLine = true,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                         colors = TextFieldDefaults.colors(
@@ -267,12 +282,14 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
                             }
                         }
                     }
-                    Choice("Project filter", projects.projects.find { it.id == projectFilter }?.name ?: "All projects",
+                    if (projects.projects.isNotEmpty()) Choice("Project filter", projects.projects.find { it.id == projectFilter }?.name ?: "All projects",
                         listOf<Long?>(null) + projects.projects.map { it.id },
                         label = { id -> projects.projects.find { it.id == id }?.name ?: "All projects" },
                     ) { projectFilter = it }
                 }
                 val visible = tasks.tasks.filter {
+                    (savedPriority == "Any" || it.priority.name == savedPriority) &&
+                    (savedStatus == "Any" || it.status.name == savedStatus) &&
                     (projectFilter == null || it.projectId == projectFilter) &&
                         (when (filter) {
                             "Completed" -> it.isCompleted
@@ -296,14 +313,31 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
                 val ordered = visible.sortedWith(compareBy<Task> { it.isCompleted }
                     .thenBy { it.plannerDate() ?: LocalDate.MAX }
                     .thenBy { it.dueTimeMinutes ?: -1 }.thenByDescending { it.priority.ordinal }.thenBy { it.id })
-                item { Text("${visible.size} tasks", style = MaterialTheme.typography.labelLarge) }
-                items(ordered, key = { it.id }) { task ->
-                    TaskCard(task, projects.projects.find { it.id == task.projectId }?.name ?: "No project",
+                item { TaskLineSection(if (filter == "All") "All tasks" else filter, "${visible.size} tasks") }
+                if (taskLayout != "List") item {
+                    TaskPlanningViews(taskLayout, ordered, busy, onOpen = { detailsId = it.id },
+                        onStatus = { task, status -> tasksViewModel.moveTask(task.id, status) })
+                }
+                if (taskLayout == "List") items(ordered, key = { it.id }) { task ->
+                    TaskCard(task, projects.projects.find { it.id == task.projectId }?.name ?: "Inbox",
                         task.dateSummary(), busy,
                         onComplete = { completed -> tasksViewModel.setCompleted(task.id, completed) { if (completed) celebration++ } },
                         onDetails = { tasksViewModel.clearError(); detailsId = task.id },
                         onEdit = { tasksViewModel.clearError(); taskEditor = task.id },
                         onDelete = { deleteTaskId = task.id })
+                }
+                item {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TaskLineTextField(quickTitle, { quickTitle = it }, singleLine = true,
+                            enabled = !busy, label = { Text("Add a task") }, modifier = Modifier.weight(1f)
+                                .onFocusChanged { quickEntryFocused = it.isFocused })
+                        FilledTonalButton(enabled = quickTitle.isNotBlank() && !busy, onClick = {
+                            tasksViewModel.saveTask(Task(title = quickTitle.trim(), projectId = projectFilter,
+                                dueDateTime = if (filter == "Today") CalendarDates.encode(LocalDate.now()) else null,
+                                createdAt = 0, updatedAt = 0)) { quickTitle = ""; focusManager.clearFocus() }
+                        }) { Text("Add") }
+                    }
                 }
             } else if (currentTab == 1) {
                 if (projects.projects.isEmpty()) item {
@@ -311,41 +345,21 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
 
                 }
                 items(projects.projects, key = { it.id }) { project ->
-                    GlassCard(Modifier.fillMaxWidth(), tintColor = project.color?.let { Color(it) }) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer) {
-                                Box(Modifier.padding(12.dp)) { NavigationGlyph(1) }
-                            }
-                            Text(project.name, style = MaterialTheme.typography.titleLarge)
-                            if (project.description.isNotBlank()) Text(project.description)
-                            Text("${tasks.tasks.count { it.projectId == project.id }} tasks")
-                            val projectTasks = tasks.tasks.filter { it.projectId == project.id }
-                            val completed = projectTasks.count { it.isCompleted }
-                            Text("$completed completed", style = MaterialTheme.typography.labelMedium)
-                            LinearProgressIndicator(progress = {
-                                if (projectTasks.isEmpty()) 0f else completed.toFloat() / projectTasks.size
-                            }, modifier = Modifier.fillMaxWidth())
-                            FilledTonalButton(onClick = { projectFilter = project.id; filter = "All"; search = ""; tab = 0 }) { Text("View tasks") }
-                            Row {
-                                TextButton(enabled = !busy, onClick = { projectsViewModel.clearError(); projectEditor = project.id },
-                                    modifier = Modifier.semantics { contentDescription = "Edit ${project.name}" }) { Text("Edit") }
-                                TextButton(enabled = !busy, onClick = { deleteProjectId = project.id },
-                                    modifier = Modifier.semantics { contentDescription = "Delete ${project.name}" }) { Text("Delete") }
-                            }
-                        }
-                    }
+                    ProjectCollectionCard(project, tasks.tasks.filter { it.projectId == project.id }, busy,
+                        onOpen = { projectFilter = project.id; filter = "All"; search = ""; savedPriority = "Any"; savedStatus = "Any"; tab = 0 },
+                        onEdit = { projectsViewModel.clearError(); projectEditor = project.id },
+                        onDelete = { deleteProjectId = project.id })
                 }
             } else if (currentTab == 3) {
                 item { StatsScreen(tasks.tasks, projects.projects) }
             } else {
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(calendarMode == "Agenda", { calendarMode = "Agenda" }, label = { Text("Agenda") })
-                        FilterChip(calendarMode == "Timeline", { calendarMode = "Timeline" }, label = { Text("Timeline") })
-                    }
+                    TaskLineSegments(listOf("Agenda", "Timeline", "Year"), calendarMode, { calendarMode = it }, Modifier.fillMaxWidth())
                 }
                 if (calendarMode == "Timeline") {
                     item { GanttChart(tasks.tasks, projects.projects) }
+                } else if (calendarMode == "Year") {
+                    item { YearPlanner(tasks.tasks, LocalDate.ofEpochDay(selectedDay)) { selectedDay = it.toEpochDay(); calendarMode = "Agenda" } }
                 } else {
                     val day = LocalDate.ofEpochDay(selectedDay)
                     item { PlannerCalendar(tasks.tasks, day) { selectedDay = it.toEpochDay() } }
@@ -377,10 +391,11 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
     }
     CompletionBurst(celebration, Modifier.align(androidx.compose.ui.Alignment.Center).size(240.dp))
     }
-    if (showFocus) FocusTimerSheet(focusState, onStop = { focusViewModel.stop { showFocus = false } }, onDismiss = { showFocus = false })
+    if (showFocus) FocusTimerSheet(focusState, onStop = { focusViewModel.stop { showFocus = false } }, onDismiss = { showFocus = false }, onPause = focusViewModel::togglePause)
     detailsId?.let { id ->
         tasks.tasks.find { it.id == id }?.let { task ->
-            key(id) { TaskDetailsDialog(task, tasksViewModel, onStartFocus = { focusViewModel.start(it); detailsId = null; showFocus = true }) { detailsId = null } }
+            key(id) { TaskDetailsDialog(task, tasksViewModel, onStartFocus = { task, minutes -> focusViewModel.start(task, minutes); detailsId = null; showFocus = true },
+                libraryViewModel = libraryViewModel) { detailsId = null } }
         }
     }
     taskEditor?.let { id ->
@@ -415,8 +430,8 @@ private fun ProjectEditor(original: Project?, busy: Boolean, error: String?,
     var selectedColor by rememberSaveable { mutableStateOf(original?.color) }
     var name by rememberSaveable { mutableStateOf(original?.name ?: "") }
     var description by rememberSaveable { mutableStateOf(original?.description ?: "") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (original == null) "New project" else "Edit project") },
-        text = {
+    TaskLineSheet(onDismiss = onDismiss, busy = busy, title = if (original == null) "New project" else "Edit project",
+        content = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TaskLineTextField(name, { name = it }, label = { Text("Project name") }, singleLine = true, enabled = !busy)
                 TaskLineTextField(description, { description = it }, label = { Text("Description") }, enabled = !busy)
@@ -437,10 +452,10 @@ private fun ProjectEditor(original: Project?, busy: Boolean, error: String?,
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
             }
         },
-        confirmButton = { TextButton(enabled = name.isNotBlank() && !busy, onClick = {
+        footer = { Column(Modifier.fillMaxWidth()) { TaskLinePrimaryButton(if (busy) "Saving…" else "Save project", enabled = name.isNotBlank() && !busy, onClick = {
             onSave((original ?: Project(name = name, createdAt = 0, updatedAt = 0)).copy(name = name, description = description, color = selectedColor))
-        }) { Text(if (busy) "Saving…" else "Save project") } },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancel") } })
+        }, modifier = Modifier.fillMaxWidth())
+        TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel") } } })
 }
 
 @Composable
@@ -448,8 +463,13 @@ internal fun <T> Choice(title: String, selected: String, options: List<T>, enabl
     label: (T) -> String = { it.toString() }, onSelected: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        TextButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-            Text("$title: $selected")
+        Surface(onClick = { expanded = true }, enabled = enabled, shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surfaceContainerLowest, modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("$title: $selected", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Text("⌄", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
@@ -573,7 +593,7 @@ private fun Task.dateSummary(): String = (when {
     dueDateTime != null -> "Due ${dueDateTime.formatDate()}"
     else -> "No dates"
 }) + (dueTimeMinutes?.let { " · %02d:%02d".format(it / 60, it % 60) } ?: "") +
-    (if (repeatRule != RepeatRule.NONE) " · Repeats ${repeatRule.name.lowercase()}" else "")
+    (if (repeatRule != RepeatRule.NONE) " · Repeats ${repeatRule.name.lowercase()}" else "") +
+    (durationMinutes?.let { " · $it min" } ?: "") + (deadline?.let { " · Deadline ${it.formatDate()}" } ?: "")
 
 internal fun Enum<*>.display(): String = name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
-

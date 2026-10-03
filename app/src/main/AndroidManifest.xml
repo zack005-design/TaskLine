@@ -11,6 +11,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.TaskFoundation">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.attachments"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/attachment_paths" />
+        </provider>
         <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminders.ReminderRecoveryReceiver" android:exported="false">
             <intent-filter>
@@ -25,6 +29,10 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/taskline_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.LibraryWidget" android:exported="false" android:label="TaskLine · Daily rituals">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/library_widget_info" />
         </receiver>
         <activity
             android:name=".MainActivity"
