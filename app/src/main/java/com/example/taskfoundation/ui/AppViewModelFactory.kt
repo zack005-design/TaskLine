@@ -15,7 +15,8 @@ class AppViewModelFactory(
         modelClass.isAssignableFrom(LibraryViewModel::class.java) -> LibraryViewModel(container.database, container.taskRepository) as T
         modelClass.isAssignableFrom(DataToolsViewModel::class.java) ->
             DataToolsViewModel(container.context.applicationContext,
-                com.example.taskfoundation.calendar.CalendarImport(container.context.applicationContext, container.database)) as T
+                com.example.taskfoundation.calendar.CalendarImport(container.context.applicationContext, container.database),
+                com.example.taskfoundation.data.sample.SampleDataRepository(container.database)) as T
         modelClass.isAssignableFrom(BackupViewModel::class.java) ->
             BackupViewModel(container.backupRepository, container.backupFiles) as T
         modelClass.isAssignableFrom(TasksViewModel::class.java) ->

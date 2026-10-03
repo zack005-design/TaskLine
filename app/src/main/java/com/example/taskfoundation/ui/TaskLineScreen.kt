@@ -83,6 +83,7 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
     var showBackup by rememberSaveable { mutableStateOf(false) }
     var showCalendar by rememberSaveable { mutableStateOf(false) }
     var showTools by remember { mutableStateOf(false) }
+    var showSampleResult by rememberSaveable { mutableStateOf(false) }
     var showAppearance by rememberSaveable { mutableStateOf(false) }
     if (showAppearance) AppearanceSheet { showAppearance = false }
     var showLibrary by rememberSaveable { mutableStateOf(false) }
@@ -91,7 +92,23 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
     var savedStatus by rememberSaveable { mutableStateOf("Any") }
     var entryMessage by remember { mutableStateOf<String?>(null) }
     val backupState = backupViewModel?.uiState?.collectAsStateWithLifecycle()?.value
-    val busy = tasks.isSaving || projects.isSaving || backupState?.busy == true
+    val toolsState = dataToolsViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    val busy = tasks.isSaving || projects.isSaving || backupState?.busy == true || toolsState?.busy == true
+    if (showSampleResult && toolsState != null) {
+        AlertDialog(onDismissRequest = { if (!toolsState.busy) showSampleResult = false },
+            title = { Text("Test data") },
+            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (toolsState.busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text("Adding sample data…")
+                } else Text(toolsState.sampleError ?: toolsState.sampleMessage ?: "Ready to add test data.")
+            } },
+            confirmButton = { TextButton(enabled = !toolsState.busy,
+                onClick = { showSampleResult = false }) { Text("Close") } },
+            dismissButton = { if (toolsState.sampleError != null && !toolsState.busy)
+                TextButton(onClick = { dataToolsViewModel.addTestData() }) { Text("Retry") }
+            })
+    }
     if (showLibrary && libraryViewModel != null) LibraryScreen(libraryViewModel, projects.projects,
         onFilter = { item ->
             val data = org.json.JSONObject(item.payload)
@@ -174,6 +191,9 @@ fun TaskLineScreen(tasksViewModel: TasksViewModel, projectsViewModel: ProjectsVi
                     Box {
                         TextButton(enabled = !busy, onClick = { showTools = true }) { Text("Tools") }
                         DropdownMenu(expanded = showTools, onDismissRequest = { showTools = false }) {
+                            if (dataToolsViewModel != null) DropdownMenuItem(text = { Text("Add test data") },
+                                enabled = !busy,
+                                onClick = { showTools = false; showSampleResult = true; dataToolsViewModel.addTestData() })
                             DropdownMenuItem(text = { Text("Appearance") }, onClick = { showTools = false; showAppearance = true })
                             if (dataToolsViewModel != null) DropdownMenuItem(text = { Text("Calendar import") },
                                 onClick = { showTools = false; showCalendar = true })

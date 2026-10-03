@@ -1,3 +1,17 @@
+# Integrated sample-data verification — 3 October 2026
+
+This report covers the [integrated development release](https://github.com/zack005-design/TaskLine/releases/tag/dev-2026-10-03-integrated). The feature-only patch was applied to the published offline source while preserving the final quick-entry overlap fix. No schema migration or cloud functionality was added.
+
+- **25 JVM tests passed**, zero failures/errors. App/test builds and lint passed; lint has zero errors and 31 warnings. Evidence: `build/integrated-build.txt` and `app/build/test-results/testDebugUnitTest/`.
+- **44 Android tests passed** on Android 16/API 36 (170.4 seconds). This includes all existing flows plus sample insertion, concurrent/repeated calls, edited-record preservation, existing-data/name collisions, backup round trip/restore, rollback/retry, and the Tools → Add test data UI flow. Evidence: `build/integrated-device-suite.txt`.
+- **6 targeted tests passed** in dark mode at 150% text (43.357 seconds): sample-data UI, three offline feature flows, composer draft restoration, and quick-entry persistence/filtering. Evidence: `build/integrated-dark-large.txt`.
+- **1 TalkBack-enabled sample-data smoke test passed** (17.744 seconds). Android reported TalkBack bound with spoken/haptic/audible feedback. Evidence: `build/integrated-talkback-smoke.txt` and `build/integrated-accessibility-state.txt`. This is an automated compatibility check, not a manual spoken-output, focus-order, or gesture-navigation audit.
+- Exact packaged APK inspected with `apksigner` and `aapt`: application ID `com.example.taskfoundation`, version 1.0/code 1, min SDK 26/target SDK 36, Android Debug certificate, and no INTERNET permission. Both app/test APK installations succeeded. No production signing configuration exists in the app build file; no physical device was connected.
+- Artifact: `build/deliverables/TaskLine-2026-10-03-integrated-debug.apk`. SHA-256: **9DF1BC52B4E5A6497C96884AF35EAC7D7F32CFC06968721E2777219B9360EDE2**. The deliverable matches the tested app APK byte-for-byte; adjacent checksum supplied.
+- Verification used a read-only emulator with private ADB server 5041 and console/ADB ports 5576/5607. An emulator System UI not-responding dialog was dismissed with Wait; the full suite reported 44 passes and no failures. All owned test/build processes completed. Light mode, standard text, and accessibility settings were restored before shutting down this emulator. Existing emulator data and recovery files were preserved.
+- Remaining limits: no physical-device validation, full manual TalkBack audit, production signing, or store distribution. The earlier feature-scope and background-timing limitations still apply. See [usage](USAGE.md#sample-data) for additive behavior and how re-adding after deleting all sample tasks can add more projects/Library records.
+
+---
 # Offline expansion verification — 3 October 2026
 
 Publication scope: this report covers the offline APK in the [3 October development release](https://github.com/zack005-design/TaskLine/releases/tag/dev-2026-10-03). Documentation was reorganized under `docs/`; application source was preserved byte-for-byte during publication. Selected fixture screenshots are included under `docs/screenshots/`. Raw build/device logs remain local.

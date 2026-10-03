@@ -32,6 +32,14 @@ Choose **Focus** from a task's details, select a duration, and start the timer. 
 
 Open **Tools → Appearance** for six accent palettes and system/light/dark mode. Appearance and the current focus session are device preferences outside portable backups.
 
+## Sample data
+
+Choose **Tools → Add test data** to add 17 sample tasks, three projects, 34 subtasks, tags, and ten Library examples. Samples cover task states, priorities, dates, recurrence, habits, notes, countdowns, templates, filters, comments, an attachment, and activity. Titles begin with `Sample ·`.
+
+Existing records are preserved. Repeated clicks keep edited samples and avoid duplicate insertion while any sample task remains. All records are inserted in one transaction; a failure rolls back the addition and offers Retry. Sample identity survives backup/restore. Reminders start off; enable one in Schedule to test notifications. Focus and appearance preferences are preserved.
+
+You can edit or delete samples normally. Deleting all sample tasks permits another set to be added; retained sample projects and Library records are not removed, so a fresh set can add more of those records.
+
 ## Calendar import
 
 Open **Tools → Calendar import** to select a synced phone calendar or `.ics` file. Choose a project, review the preview, select events, and confirm. Extract Google Calendar ZIP exports before importing an `.ics` file. Re-importing the same source skips known event keys.

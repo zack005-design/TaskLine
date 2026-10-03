@@ -15,12 +15,20 @@ import java.time.ZoneId
 
 data class DataToolsState(val busy: Boolean = false, val message: String? = null, val error: String? = null,
     val calendars: List<DeviceCalendar> = emptyList(), val preview: CalendarPreview? = null,
-    val selected: Set<String> = emptySet(), val days: Int = 90)
+    val selected: Set<String> = emptySet(), val days: Int = 90,
+    val sampleMessage: String? = null, val sampleError: String? = null)
 
-class DataToolsViewModel(private val context: Context, private val importer: CalendarImport) : ViewModel() {
+class DataToolsViewModel(private val context: Context, private val importer: CalendarImport,
+    private val samples: com.example.taskfoundation.data.sample.SampleDataRepository? = null) : ViewModel() {
 
     private val state = MutableStateFlow(DataToolsState())
     val uiState = state.asStateFlow()
+    fun addTestData() = run(sample = true) {
+        val count = checkNotNull(samples) { "Test data is unavailable." }.add()
+        state.update { it.copy(sampleMessage = if (count == 0)
+            "Sample data is already present. Your edits have been kept. Delete all sample tasks to add a fresh set."
+        else "$count sample tasks added with 3 projects, subtasks, tags and library examples: habits, notes, countdowns, templates, filters, comments, an attachment and activity. Explore the task views, Calendar, Stats, Library and widgets, or start Focus from a task. Reminders are off until you enable them. Existing data has been kept.") }
+    }
     fun report(message: String) { state.update { it.copy(error = message) } }
     fun setDays(days: Int) { if (!state.value.busy) state.update { it.copy(days = days, preview = null, selected = emptySet()) } }
     fun dismissPreview() { if (!state.value.busy) state.update { it.copy(preview = null, selected = emptySet()) } }
@@ -54,13 +62,17 @@ class DataToolsViewModel(private val context: Context, private val importer: Cal
         }
         output.toString("UTF-8")
     }
-    private fun run(block: suspend () -> Unit) {
+    private fun run(sample: Boolean = false, block: suspend () -> Unit) {
         if (state.value.busy) return
-        state.update { it.copy(busy = true, error = null, message = null) }
+        state.update { if (sample) it.copy(busy = true, sampleError = null, sampleMessage = null)
+            else it.copy(busy = true, error = null, message = null) }
         viewModelScope.launch(Dispatchers.IO) {
             try { block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) { state.update { it.copy(error = error.message ?: "Operation failed. Please try again.") } }
+            catch (error: Exception) { state.update {
+                val message = error.message ?: "Operation failed. Please try again."
+                if (sample) it.copy(sampleError = message) else it.copy(error = message)
+            } }
             finally { state.update { it.copy(busy = false) } }
         }
     }
